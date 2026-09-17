@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   Light Neumorphism Design System
+   ============================================================ */
+:root {
+  --bg: #e0e5ec;
+  --panel: #e0e5ec;
+  --text: #2d3748;
+  --text-muted: #718096;
+  --text-dim: #a0aec0;
+  
+  --hi: #15803d;
+  --hi-soft: #22c55e;
+  --tech-green: #15803d;
+  --mid: #cbd5e0;
+  
+  /* Light Neumorphism Shadows */
+  --neo-out: 9px 9px 16px rgba(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5);
+  --neo-out-sm: 5px 5px 10px rgba(163,177,198,0.6), -5px -5px 10px rgba(255,255,255, 0.5);
+  --neo-in: inset 6px 6px 10px 0 rgba(163,177,198, 0.5), inset -6px -6px 10px 0 rgba(255,255,255, 0.5);
+  --neo-in-deep: inset 8px 8px 12px 0 rgba(163,177,198, 0.7), inset -8px -8px 12px 0 rgba(255,255,255, 0.8);
+  --neo-glow-green: inset 4px 4px 10px 0 rgba(163,177,198, 0.4), inset -4px -4px 10px 0 rgba(255,255,255, 0.6), inset 0 0 18px rgba(21,128,61, 0.25);
+  --neo-glow: inset 4px 4px 10px 0 rgba(163,177,198, 0.4), inset -4px -4px 10px 0 rgba(255,255,255, 0.6), inset 0 0 18px rgba(255,126,103, 0.25);
+  
+  --radius: 28px;
+  --radius-lg: 36px;
+}
+
+@layer base {
+  html { @apply antialiased; }
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--text);
+    letter-spacing: -0.01em;
+    font-weight: 800;
+  }
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 15px rgba(255,126,103, 0.4);
+    border-radius: 6px;
+  }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb {
+    background: var(--mid);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+}
+
+@layer components {
+  /* Hardware primitives */
+  .card {
+    background-color: var(--bg);
+    color: var(--text);
+    border-radius: var(--radius);
+    box-shadow: var(--neo-out);
+    border: none;
+    transition: transform 240ms ease-out, box-shadow 240ms ease-out;
+  }
+  .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 12px 12px 20px rgba(163,177,198,0.6), -12px -12px 20px rgba(255,255,255, 0.6);
+  }
+  .card-lg {
+    background-color: var(--bg);
+    color: var(--text);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--neo-out);
+    border: none;
+  }
+  .card-inset {
+    background-color: var(--bg);
+    border-radius: var(--radius);
+    box-shadow: var(--neo-in);
+  }
+
+  .btn-primary {
+    background-color: var(--bg);
+    color: var(--hi);
+    box-shadow: var(--neo-out-sm);
+    border-radius: 9999px;
+    transition: all 0.2s ease-in-out;
+  }
+  .btn-primary:hover, .btn-primary:active {
+    box-shadow: var(--neo-in);
+  }
+
+  .btn-secondary, .btn-danger {
+    background-color: var(--bg);
+    color: var(--text-muted);
+    box-shadow: var(--neo-out-sm);
+    border-radius: 9999px;
+    transition: all 0.2s ease-in-out;
+  }
+  .btn-secondary:hover, .btn-danger:hover, .btn-secondary:active, .btn-danger:active {
+    box-shadow: var(--neo-in);
+  }
+
+  .btn-danger {
+    color: #e53e3e;
+  }
+
+  .input-recess {
+    background-color: var(--bg);
+    box-shadow: var(--neo-in);
+    border: none;
+    border-radius: 24px;
+  }
+  .input-recess:focus {
+    box-shadow: var(--neo-in-deep);
+    outline: none;
+  }
+
+  .sk-icon-disc {
+    background-color: var(--bg);
+    box-shadow: var(--neo-out-sm);
+    border-radius: 50%;
+  }
+  .sk-pill {
+    background-color: var(--bg);
+    box-shadow: var(--neo-out-sm);
+    border-radius: 9999px;
+  }
+
+  .sk-nav-active {
+    color: var(--tech-green);
+    box-shadow: var(--neo-glow-green);
+    background-color: var(--bg);
+  }
+  .sk-nav-hover:hover {
+    box-shadow: var(--neo-in);
+  }
+  .sk-header {
+    background-color: var(--bg);
+    box-shadow: var(--neo-out-sm);
+  }
+}
