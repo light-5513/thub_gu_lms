@@ -1,17 +1,9 @@
 services:
   - type: web
-    runtime: python
+    env: docker
     plan: free
     name: lms
     rootDir: .
-    buildCommand: |
-      pip install --upgrade pip &&
-      pip install -r requirements.txt &&
-      cd frontend &&
-      npm ci --no-audit --no-fund &&
-      npm run build &&
-      cd ..
-    startCommand: PYTHONPATH=/opt/render/project/src:$PYTHONPATH uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
