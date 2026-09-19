@@ -60,10 +60,7 @@ export function StudentDashboardPage() {
             borderBottom: "1px solid rgba(255, 255, 255, 0.30)",
           }}
         >
-          <div className="flex items-center gap-2">
-            <div className="led led-pulse-bg" />
-            <span className="tech-label tech-label-hi">CH · 01 · DASHBOARD</span>
-          </div>
+
           <h1 className="mt-2 text-lg font-extrabold" style={{ color: "var(--text)" }}>
             Welcome back, {student.first_name}!
           </h1>

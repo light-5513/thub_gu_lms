@@ -9,6 +9,7 @@ from app.schemas.batch import (
     BatchAssignRequest,
     BatchAssignResponse,
     BatchCreate,
+    BatchUpdate,
     BatchListResponse,
     BatchOut,
 )
@@ -33,6 +34,7 @@ async def list_batches(
 @router.post("/batches", response_model=BatchOut)
 async def create_batch(
     req: BatchCreate,
+    BatchUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
     admin: dict = Depends(require_staff),
 ):
@@ -91,3 +93,29 @@ async def get_batch_students(
     """List students within a specific batch."""
     service = BatchService(db)
     return await service.get_batch_students(batch_id, page, page_size)
+
+
+@router.patch("/batches/{batch_id}", response_model=BatchOut)
+async def update_batch(
+    batch_id: str,
+    req: BatchUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    admin: dict = Depends(require_staff),
+):
+    update_data = req.model_dump(exclude_unset=True)
+    if not update_data:
+        raise AppError("No data provided to update", 400)
+    from bson import ObjectId
+    try:
+        oid = ObjectId(batch_id)
+    except Exception:
+        raise AppError("Invalid batch ID format", 400)
+    res = await db.batches.find_one_and_update(
+        {"_id": oid},
+        {"$set": update_data},
+        return_document=True
+    )
+    if not res:
+        raise AppError("Batch not found", 404)
+    res["id"] = str(res.pop("_id"))
+    return res

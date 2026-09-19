@@ -64,7 +64,7 @@ export function AdminLayout() {
 
         {/* Logo section */}
         <div className="flex flex-col items-center gap-2 px-5 py-8 text-center relative">
-          <img src="/logo.png" alt="Technical Hub" className="h-12 w-auto object-contain drop-shadow-card-pill" />
+          <img src="/logo.png" alt="Technical Hub" className="h-16 w-auto object-contain drop-shadow-card-pill" />
           <div className="min-w-0">
             <p className="text-sm font-extrabold tracking-wide text-leather-300">Admin Console</p>
           </div>
@@ -169,7 +169,7 @@ export function StudentLayout() {
       <header className="sk-header sticky top-0 z-20">
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
           <NavLink to="/student/dashboard" className="flex flex-col items-center gap-1.5 mt-2 mb-2">
-            <img src="/logo.png" alt="Technical Hub" className="h-10 w-auto object-contain drop-shadow-card-pill" />
+            <img src="/logo.png" alt="Technical Hub" className="h-12 w-auto object-contain drop-shadow-card-pill" />
             <div className="hidden sm:block">
               <p className="text-xs font-extrabold leading-none text-leather-300">Student Portal</p>
             </div>

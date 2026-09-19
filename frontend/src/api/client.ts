@@ -45,6 +45,10 @@ export const getBatches = (page = 1, pageSize = 50) =>
 export const createBatch = (data: { batch_code: string; name: string; description?: string }) =>
   api.post(`/admin/batches`, data).then((r) => r.data);
 
+
+export const updateBatch = (id: string, data: { name?: string; description?: string }) =>
+  api.patch(`/admin/batches/${id}`, data).then((r) => r.data);
+
 export const deleteBatch = (id: string) => api.delete(`/admin/batches/${id}`).then((r) => r.data);
 
 export const assignBatchStudents = (batchId: string, rollNumbers: string[]) =>

@@ -85,7 +85,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
             <X size={16} />
           </button>
         </div>
-        <div className="max-h-[75vh] overflow-y-auto p-5">{children}</div>
+        <div className="max-h-[85vh] min-h-[32rem] overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );

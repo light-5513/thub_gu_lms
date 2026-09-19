@@ -72,9 +72,9 @@ export function CodingProfilesAdminPage() {
             <Button variant="ghost" size="sm" onClick={() => setActiveJobId(null)}>Dismiss</Button>
           </div>
           {activeJob.data && activeJob.data.error_summary && activeJob.data.error_summary.length > 0 && (
-            <details className="mt-3 rounded-[20px] bg-neutral-100/60 p-3 text-[11px] text-primary-500 ring-1 ring-black">
-              <summary className="cursor-pointer font-semibold">{activeJob.data.error_summary.length} recent errors</summary>
-              <ul className="mt-1.5 space-y-0.5">
+            <details className="mt-3 card-inset p-3 text-[11px] text-primary-700">
+              <summary className="cursor-pointer font-bold">{activeJob.data.error_summary.length} recent errors</summary>
+              <ul className="mt-2 space-y-1">
                 {activeJob.data.error_summary.slice(-8).map((e, i) => (
                   <li key={i} className="truncate">{e}</li>
                 ))}

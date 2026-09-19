@@ -46,6 +46,8 @@ export interface ClassItem {
   subject: string;
   faculty?: string | null;
   topic?: string | null;
+  session_mode?: string | null;
+  batch_id?: string | null;
   attendance_marked: boolean;
 }
 

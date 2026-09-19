@@ -117,22 +117,19 @@ class StudentRepository:
 
     async def find_by_group(
         self,
-        course: str,
-        branch: str,
-        section: str,
+        course: str | None = None,
+        branch: str | None = None,
+        section: str | None = None,
         batch_id: str | None = None,
         academic_year_id: str | None = None,
     ) -> builtins.list[dict]:
-        filters: dict[str, Any] = {
-            "course": course,
-            "branch": branch,
-            "section": section,
-            "status": "active",
-        }
-        if batch_id:
-            filters["batch_id"] = batch_id
-        if academic_year_id:
-            filters["academic_year_id"] = academic_year_id
+        filters: dict[str, Any] = {"status": "active"}
+        if course: filters["course"] = course
+        if branch: filters["branch"] = branch
+        if section: filters["section"] = section
+        if batch_id: filters["batch_id"] = batch_id
+        if academic_year_id: filters["academic_year_id"] = academic_year_id
+        
         cursor = self.col.find(filters).sort([("roll_number", 1)])
         return await cursor.to_list(length=1000)
 

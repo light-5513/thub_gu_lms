@@ -55,7 +55,7 @@ class LeetCodeAdapter(CodingPlatformAdapter):
         if not user:
             raise AdapterError("LeetCode profile not found")
         ac = ((user.get("submitStatsGlobal") or {}).get("acSubmissionNum")) or []
-        solved = sum(int(d.get("count", 0)) for d in ac)
+        solved = next((int(d["count"]) for d in ac if d.get("difficulty") == "All"), 0)
         easy = next((int(d["count"]) for d in ac if d.get("difficulty") == "Easy"), 0)
         medium = next(
             (int(d["count"]) for d in ac if d.get("difficulty") == "Medium"), 0

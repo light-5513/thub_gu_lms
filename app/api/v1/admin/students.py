@@ -59,6 +59,58 @@ async def list_students(
     }
 
 
+@router.get("/export")
+async def export_students(
+    search: str | None = None,
+    course: str | None = None,
+    branch: str | None = None,
+    section: str | None = None,
+    batch_id: str | None = None,
+    academic_year_id: str | None = None,
+    status: str | None = None,
+    user=Depends(require_staff),
+    db=Depends(get_db),
+):
+    import io
+    from fastapi.responses import Response
+    from openpyxl import Workbook
+    
+    service = StudentService(db)
+    filters = service.students.build_filters(
+        search, course, branch, section, batch_id, academic_year_id, status
+    )
+    docs, _ = await service.students.list(filters, page=1, page_size=100000, sort_by="roll_number", sort_dir=1)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Students"
+    
+    headers = ["Roll Number", "First Name", "Last Name", "Email", "Phone", "Course", "Branch", "Section", "Status"]
+    ws.append(headers)
+    
+    for d in docs:
+        ws.append([
+            d.get("roll_number", ""),
+            d.get("first_name", ""),
+            d.get("last_name", ""),
+            d.get("email", ""),
+            d.get("phone", ""),
+            d.get("course", ""),
+            d.get("branch", ""),
+            d.get("section", ""),
+            d.get("status", "")
+        ])
+        
+    output = io.BytesIO()
+    wb.save(output)
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=students_export.xlsx"}
+    )
+
+
 @router.get("/{student_id}")
 async def get_student(student_id: str, user=Depends(require_staff), db=Depends(get_db)):
     service = StudentService(db)

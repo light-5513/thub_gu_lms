@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, KeyRound, MoreVertical, Plus, Search, Send, Trash2, Users } from "lucide-react";
+import { BarChart3, KeyRound, MoreVertical, Plus, Search, Send, Trash2, Users, Download } from "lucide-react";
 import { useDeleteStudent, useResetAccount, useResendInvitation, useStudents, type StudentListParams } from "@/api/hooks";
 import { Badge, Card, EmptyState, TableSkeleton } from "@/components/ui/display";
 import { Button, Select } from "@/components/ui/forms";
 import { Dropdown, DropdownItem, Pagination, Table } from "@/components/ui/navigation";
 import { ConfirmDialog, useToast } from "@/components/ui/overlays";
-import { errorMessage } from "@/api/client";
+import { errorMessage, api } from "@/api/client";
 
 export function StudentsPage() {
   const [params, setParams] = useState<StudentListParams>({ page: 1, page_size: 15 });
@@ -17,8 +17,38 @@ export function StudentsPage() {
   const resetAccount = useResetAccount();
   const deleteStudent = useDeleteStudent();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const set = (patch: Partial<StudentListParams>) => setParams((p) => ({ ...p, page: 1, ...patch }));
+
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      const res = await api.get('/admin/students/export', {
+        params: {
+          search: params.search,
+          course: params.course,
+          branch: params.branch,
+          section: params.section,
+          batch_id: params.batch_id,
+          academic_year_id: params.academic_year_id,
+          status: params.status,
+        },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'students_export.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e) {
+      toast.push('error', 'Failed to export students');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -27,9 +57,14 @@ export function StudentsPage() {
           <h1 className="text-lg font-bold text-leather-300">Students</h1>
           {data && <p className="text-xs text-leather-50/80">{data.total} students found</p>}
         </div>
-        <Button onClick={() => navigate("/admin/invitations")}>
-          <Plus size={15} /> Invite student
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleExport} variant="secondary" disabled={isExporting}>
+            <Download size={15} /> {isExporting ? "Exporting..." : "Export Excel"}
+          </Button>
+          <Button onClick={() => navigate("/admin/invitations")}>
+            <Plus size={15} /> Invite student
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Layers, Plus, Trash2, Users, Upload, CheckCircle2 } from "lucide-react";
+import { Layers, Plus, Trash2, Users, Upload, CheckCircle2, Eye, CalendarCheck } from "lucide-react";
 import {
   useBatches,
   useCreateBatch,
@@ -8,6 +9,7 @@ import {
   useBatchStudents,
   useAssignBatchStudents,
   useUploadBatchStudents,
+  useUpdateBatch,
 } from "@/api/hooks";
 import { Badge, Card, CardHeader, EmptyState, TableSkeleton, Skeleton } from "@/components/ui/display";
 import { Button, FormField, Input, Textarea } from "@/components/ui/forms";
@@ -159,52 +161,65 @@ function CreateBatchModal({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 function ManageBatchModal({ batch, onClose }: { batch: any; onClose: () => void }) {
-  const [tab, setTab] = useState<"students" | "add" | "upload">("students");
+  const [tab, setTab] = useState<"students" | "add" | "upload" | "edit">("students");
   const del = useDeleteBatch();
   const toast = useToast();
   const [showDel, setShowDel] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <>
       <Modal open={true} onClose={onClose} title={`Manage Batch: ${batch.name}`} wide>
-        <div className="flex items-center gap-4 border-b border-leather-50/10 px-5 py-3 text-sm font-semibold text-leather-200">
+        <div className="flex items-center gap-4 border-b border-leather-50/10 px-5 py-3 text-sm font-semibold text-leather-200 overflow-x-auto">
           <button
-            className={`pb-3 ${tab === "students" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
+            className={`whitespace-nowrap pb-3 ${tab === "students" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
             onClick={() => setTab("students")}
           >
             Students ({batch.student_count})
           </button>
           <button
-            className={`pb-3 ${tab === "add" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
+            className={`whitespace-nowrap pb-3 ${tab === "add" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
             onClick={() => setTab("add")}
           >
             Add Manually
           </button>
           <button
-            className={`pb-3 ${tab === "upload" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
+            className={`whitespace-nowrap pb-3 ${tab === "upload" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
             onClick={() => setTab("upload")}
           >
             Upload Excel
           </button>
+          <button
+            className={`whitespace-nowrap pb-3 ${tab === "edit" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
+            onClick={() => setTab("edit")}
+          >
+            Edit Details
+          </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 min-h-[300px]">
           {tab === "students" && <BatchStudentsTab batchId={batch.id} />}
           {tab === "add" && <BatchAddTab batchId={batch.id} onSuccess={() => setTab("students")} />}
           {tab === "upload" && <BatchUploadTab batchId={batch.id} onSuccess={() => setTab("students")} />}
+          {tab === "edit" && <BatchEditTab batch={batch} onSuccess={onClose} />}
         </div>
         
-        <div className="border-t border-leather-50/10 bg-cream-100/50 p-4 flex justify-between">
+        <div className="border-t border-leather-50/10 bg-cream-100/50 p-4 flex flex-wrap items-center justify-between gap-3">
           <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setShowDel(true)}>
             <Trash2 size={16} className="mr-2" /> Delete Batch
           </Button>
-          <Button variant="secondary" onClick={onClose}>
-            Close
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" onClick={() => navigate("/admin/attendance")}>
+              <CalendarCheck size={16} className="mr-2" /> Take Attendance
+            </Button>
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
       </Modal>
-
-      <ConfirmDialog
+      
+<ConfirmDialog
         open={showDel}
         title="Delete Batch?"
         message="Are you sure you want to delete this batch? The students will NOT be deleted, they will simply be unassigned from this batch."
@@ -229,6 +244,7 @@ function ManageBatchModal({ batch, onClose }: { batch: any; onClose: () => void 
 function BatchStudentsTab({ batchId }: { batchId: string }) {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useBatchStudents(batchId, page);
+  const navigate = useNavigate();
 
   if (isLoading) return <Skeleton className="h-48 w-full rounded-3xl" />;
   if (!data || data.items.length === 0) return <p className="text-sm text-leather-200 py-10 text-center">No students are assigned to this batch yet.</p>;
@@ -236,12 +252,17 @@ function BatchStudentsTab({ batchId }: { batchId: string }) {
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto rounded-xl ring-1 ring-black/5">
-        <Table headers={["Roll Number", "Name", "Branch"]}>
+        <Table headers={["Roll Number", "Name", "Branch", ""]}>
           {data.items.map((s: any) => (
             <tr key={s.id} className="hover:bg-cream-200/30">
               <td className="px-4 py-2 text-xs font-bold text-leather-300">{s.roll_number}</td>
               <td className="px-4 py-2 text-xs text-leather-200">{s.first_name} {s.last_name}</td>
               <td className="px-4 py-2 text-xs text-leather-50/80">{s.branch} - {s.section}</td>
+              <td className="px-4 py-2 text-right">
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/students/${s.id}/report`)}>
+                  <Eye size={14} className="mr-1" /> View
+                </Button>
+              </td>
             </tr>
           ))}
         </Table>
@@ -332,5 +353,46 @@ function BatchUploadTab({ batchId, onSuccess }: { batchId: string; onSuccess: ()
         </Button>
       </div>
     </div>
+  );
+}
+
+function BatchEditTab({ batch, onSuccess }: { batch: any; onSuccess: () => void }) {
+  const [name, setName] = useState(batch.name || "");
+  const [desc, setDesc] = useState(batch.description || "");
+  const update = useUpdateBatch();
+  const toast = useToast();
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    update.mutate(
+      { id: batch.id, data: { name, description: desc } },
+      {
+        onSuccess: () => {
+          toast.push('success', "Batch updated successfully");
+          onSuccess();
+        },
+        onError: (err) => toast.push('error', errorMessage(err)),
+      }
+    );
+  };
+
+  return (
+    <form onSubmit={handleUpdate} className="space-y-4 max-w-md">
+      <FormField label="Batch Name *">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </FormField>
+      <FormField label="Description (Optional)">
+        <Textarea
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          rows={3}
+        />
+      </FormField>
+      <Button loading={update.isPending} className="w-full">Save Changes</Button>
+    </form>
   );
 }

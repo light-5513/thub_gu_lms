@@ -120,9 +120,10 @@ export function Dropdown({ trigger, children, align = "right" }: { trigger: Reac
           <div className="fixed inset-0 z-20" onClick={() => setOpen(false)} />
           <div
             className={clsx(
-              "absolute z-30 mt-1 w-52 animate-fade-in overflow-hidden rounded-2xl border border-leather-50/15 py-1 shadow-card-pop",
-              align === "right" ? "right-0" : "left-0"
+              "absolute z-30 top-0 w-52 animate-fade-in overflow-hidden rounded-2xl border border-leather-50/15 py-1 shadow-card-pop",
+              align === "right" ? "right-full mr-2" : "left-full ml-2"
             )}
+            style={{ backgroundColor: "var(--bg)" }}
             onClick={(e) => e.stopPropagation()}
           >
             {children(() => setOpen(false))}

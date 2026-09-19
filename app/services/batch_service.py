@@ -25,8 +25,12 @@ class BatchService:
         skip = (page - 1) * page_size
         cursor = self.batches.collection.find({}).sort("created_at", -1).skip(skip).limit(page_size)
         items = []
+        from datetime import datetime
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))
+            for k, v in doc.items():
+                if isinstance(v, datetime):
+                    doc[k] = v.isoformat()
             items.append(doc)
             
         return {
@@ -106,8 +110,12 @@ class BatchService:
         skip = (page - 1) * page_size
         cursor = self.students.find({"batch_id": batch_id}).sort("first_name", 1).skip(skip).limit(page_size)
         items = []
+        from datetime import datetime
         async for doc in cursor:
             doc["id"] = str(doc.pop("_id"))
+            for k, v in doc.items():
+                if isinstance(v, datetime):
+                    doc[k] = v.isoformat()
             items.append(doc)
             
         return {

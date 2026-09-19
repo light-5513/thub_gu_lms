@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, getBatches, createBatch, deleteBatch, assignBatchStudents, uploadBatchStudents, getBatchStudents } from "./client";
+import { api, getBatches, createBatch, updateBatch, deleteBatch, assignBatchStudents, uploadBatchStudents, getBatchStudents } from "./client";
 import type {
   AdminDashboard,
   AppSettings,
@@ -517,6 +517,15 @@ export const useCreateBatch = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: { batch_code: string; name: string; description?: string }) => createBatch(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["batches"] }),
+  });
+};
+
+
+export const useUpdateBatch = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { name?: string; description?: string } }) => updateBatch(id, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["batches"] }),
   });
 };

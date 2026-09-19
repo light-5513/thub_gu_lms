@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Github, Link2, Trash2 } from "lucide-react";
-import { useCodingProfiles, useDeleteCodingProfile, useSaveCodingProfile, useStudentProfile, useUpdateProfile } from "@/api/hooks";
+import { useCodingProfiles, useDeleteCodingProfile, useSaveCodingProfile, useStudentProfile, useUpdateProfile, useHeatmap, useStreak } from "@/api/hooks";
 import { Badge, Card, CardHeader, EmptyState, Skeleton } from "@/components/ui/display";
 import { Button, FormField, Input, Select } from "@/components/ui/forms";
 import type { Student } from "@/types";
 import { ConfirmDialog, Modal, useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
+import { Heatmap } from "@/components/ui/heatmap";
 
 import { SiLeetcode, SiCodechef, SiCodeforces, SiHackerrank, SiHackerearth, SiGeeksforgeeks, SiGithub } from "react-icons/si";
 
@@ -160,6 +161,7 @@ export function ProfilePage() {
         </Card>
         <CodingProfilesCard />
       </div>
+      <AttendanceStreakCard />
     </div>
   );
 }
@@ -301,6 +303,30 @@ function CodingProfilesCard() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+    </Card>
+  );
+}
+
+function AttendanceStreakCard() {
+  const year = new Date().getFullYear();
+  const heatmap = useHeatmap(year);
+  const streak = useStreak();
+
+  return (
+    <Card className="mt-5">
+      <CardHeader 
+        title="Attendance streak" 
+        subtitle={
+          streak.data 
+            ? `Total active days: ${streak.data.total_present_sessions} · Max streak: ${streak.data.longest_streak}` 
+            : `${year}`
+        } 
+      />
+      {heatmap.isLoading ? (
+        <Skeleton className="h-28 w-full" />
+      ) : (
+        <Heatmap days={heatmap.data?.days ?? []} year={year} />
+      )}
     </Card>
   );
 }

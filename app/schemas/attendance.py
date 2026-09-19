@@ -10,12 +10,13 @@ class ClassCreate(BaseModel):
     date: dt_date
     start_time: dt_time
     end_time: dt_time
-    course: str
-    branch: str
-    section: str
+    course: str | None = None
+    branch: str | None = None
+    section: str | None = None
     subject: str
     faculty: str | None = None
     topic: str | None = None
+    session_mode: str | None = None
     academic_year_id: str | None = None
     batch_id: str | None = None
 
@@ -30,6 +31,7 @@ class ClassUpdate(BaseModel):
     subject: str | None = None
     faculty: str | None = None
     topic: str | None = None
+    session_mode: str | None = None
 
 
 class ClassOut(ClassCreate):
