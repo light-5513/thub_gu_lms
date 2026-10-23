@@ -163,3 +163,15 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
     />
   );
 }
+
+// ---------------------------------------------------------------- Data Row
+export function Row({ label, value, dot }: { label: string; value: number | string; dot: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <dt className="inline-flex items-center gap-1.5 capitalize text-leather-200 text-xs">
+        <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
+      </dt>
+      <dd className="font-semibold text-leather-300 text-xs">{value}</dd>
+    </div>
+  );
+}

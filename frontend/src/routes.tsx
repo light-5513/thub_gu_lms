@@ -23,6 +23,7 @@ import { ReportsPage } from "@/features/admin/ReportsPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { AuditLogsPage } from "@/features/admin/AuditLogsPage";
 import { BatchesPage } from "@/features/admin/BatchesPage";
+import { SandboxPage } from "@/features/admin/SandboxPage";
 
 const STAFF = ["SUPER_ADMIN", "ADMIN", "TEACHER"] as const;
 
@@ -75,6 +76,7 @@ export const router = createBrowserRouter([
           { path: "/admin/reports", element: <ReportsPage /> },
           { path: "/admin/batches", element: <BatchesPage /> },
           { path: "/admin/settings", element: <SettingsPage /> },
+          { path: "/admin/sandbox", element: <SandboxPage /> },
           { path: "/admin/audit-logs", element: <AuditLogsPage /> },
         ],
       },

@@ -39,6 +39,7 @@ import {
   useStudentReport,
   type StudentReport,
 } from "@/api/hooks";
+import { PLATFORM_META } from "@/constants/codingPlatforms";
 import {
   Badge,
   Card,
@@ -46,6 +47,7 @@ import {
   EmptyState,
   ErrorState,
   ProgressBar,
+  Row,
   Skeleton,
   StatCard,
   StatCardSkeleton,
@@ -421,7 +423,8 @@ function ReportView({
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {coding.platforms.map((p) => {
-                const color = PLATFORM_COLORS[p.platform] ?? "#525252";
+                const meta = PLATFORM_META[p.platform] ?? { label: p.platform };
+                const IconComponent = meta.icon;
                 return (
                   <div
                     key={p.platform}
@@ -429,17 +432,11 @@ function ReportView({
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <div
-                          className="flex h-9 w-9 items-center justify-center rounded-2xl text-[10px] font-bold uppercase text-leather-200"
-                          style={{
-                            backgroundColor: color,
-                            boxShadow: "0 1px 0 rgba(255,255,255,0.4) inset, 0 2px 4px rgba(0,0,0,0.15)",
-                          }}
-                        >
-                          {p.platform.slice(0, 3)}
+                        <div className="sk-icon-disc flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-leather-200">
+                          {IconComponent ? <IconComponent size={18} /> : <span className="text-xs font-bold">{meta.label.slice(0, 2).toUpperCase()}</span>}
                         </div>
                         <div>
-                          <p className="text-sm font-bold capitalize text-leather-300">{p.platform}</p>
+                          <p className="text-sm font-bold text-leather-300">{meta.label}</p>
                           <p className="text-[11px] text-leather-50/80">@{p.username || "—"}</p>
                         </div>
                       </div>
@@ -591,13 +588,3 @@ function ReportView({
   );
 }
 
-function Row({ label, value, dot }: { label: string; value: number; dot: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="inline-flex items-center gap-1.5 capitalize">
-        <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
-      </dt>
-      <dd className="font-bold text-leather-300">{value}</dd>
-    </div>
-  );
-}

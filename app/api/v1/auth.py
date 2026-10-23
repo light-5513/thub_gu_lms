@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from app.core.deps import get_current_user, get_db
+from app.core.deps import get_current_user, get_db, require_admin
 from app.core.errors import AppError, AuthError
 from app.core.rate_limit import client_ip, is_rate_limited
 from app.schemas.auth import (
@@ -83,14 +83,47 @@ async def login(
 
 
 @router.get("/me")
-async def me(user=Depends(get_current_user)):
+async def me(request: Request, user=Depends(get_current_user)):
+    roll_number = None
+    if user["role"] == "STUDENT":
+        student = await request.app.state.db.students.find_one({"email": user["email"]})
+        if student:
+            roll_number = student.get("roll_number")
+
     return {
         "id": str(user["_id"]),
         "email": user["email"],
         "role": user["role"],
         "full_name": user.get("full_name"),
+        "roll_number": roll_number,
         "must_change_password": bool(user.get("must_change_password")),
     }
+
+
+@router.get("/sandbox-token")
+async def get_sandbox_token(
+    roll_number: str,
+    request: Request,
+    admin_user=Depends(require_admin),
+):
+    from app.core.security import create_access_token
+    from app.core.errors import NotFoundError
+
+    db = request.app.state.db
+    student = await db.students.find_one({"roll_number": roll_number.strip().upper()})
+    if not student:
+        raise NotFoundError(f"Student with roll number {roll_number} not found")
+        
+    user = await db.users.find_one({"email": student["email"]})
+    if not user:
+        raise NotFoundError("User account for this student not found")
+        
+    if not user.get("is_active", True):
+        raise AuthError("Student account is inactive")
+
+    # Generate a temporary access token for the sandbox
+    access_token = create_access_token(str(user["_id"]), user["role"], user.get("token_version", 0))
+    return {"access_token": access_token}
 
 
 @router.post("/logout")

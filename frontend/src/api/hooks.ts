@@ -57,6 +57,13 @@ export function useForgotPassword() {
   });
 }
 
+export function useSandboxToken() {
+  return useMutation({
+    mutationFn: async (rollNumber: string) => 
+      (await api.get<{ access_token: string }>(`/auth/sandbox-token`, { params: { roll_number: rollNumber } })).data,
+  });
+}
+
 // ------------------------------------------------------------------ email invitations
 export function useInviteByEmail() {
   const qc = useQueryClient();

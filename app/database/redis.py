@@ -61,7 +61,7 @@ async def enqueue_job(task_name: str, *args, **kwargs) -> bool:
         from arq.connections import ArqRedis
 
         if isinstance(redis, ArqRedis):
-            await redis.enqueue_job(task_name, *args, **kwargs)
+            await redis.enqueue_job(task_name, *args, **kwargs)  # type: ignore
             return True
         # Plain redis client cannot enqueue; treat as unavailable.
         return False
@@ -76,8 +76,8 @@ async def set_worker_heartbeat(worker_id: str) -> None:
         return
     import time
 
-    await redis.set("worker:heartbeat", str(time.time()), ex=60)
-    await redis.sadd("workers", worker_id)
+    await redis.set("worker:heartbeat", str(time.time()), ex=60)  # type: ignore
+    await redis.sadd("workers", worker_id)  # type: ignore
 
 
 async def worker_healthy() -> bool:
@@ -85,7 +85,7 @@ async def worker_healthy() -> bool:
     if redis is None:
         return False
     try:
-        value = await redis.get("worker:heartbeat")
+        value = await redis.get("worker:heartbeat")  # type: ignore
         return value is not None
     except Exception:
         return False

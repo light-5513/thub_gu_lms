@@ -13,15 +13,12 @@ def get_db():
 
 
 def _extract_token(request: Request) -> str | None:
-    # Prefer HttpOnly cookie; allow Authorization header for API clients.
-    token = request.cookies.get("access_token")
-    if token:
-        return token
+    # Prefer Authorization header for sandbox/API clients, fallback to HttpOnly cookie.
     auth = request.headers.get("Authorization")
     scheme, param = get_authorization_scheme_param(auth)
     if scheme.lower() == "bearer" and param:
         return param
-    return None
+    return request.cookies.get("access_token")
 
 
 async def get_current_user(request: Request):
@@ -41,6 +38,8 @@ async def get_current_user(request: Request):
     # Token invalidation via per-user version counter
     if int(payload.get("ver", 0)) != int(user.get("token_version", 0)):
         raise AuthError("Session revoked. Please log in again.")
+    if "imp" in payload:
+        user["impersonator_id"] = payload["imp"]
     return user
 
 

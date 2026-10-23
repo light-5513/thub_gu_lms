@@ -7,6 +7,7 @@ interface Session {
   email: string;
   role: Role;
   full_name?: string | null;
+  roll_number?: string | null;
   must_change_password: boolean;
 }
 

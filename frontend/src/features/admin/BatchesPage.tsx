@@ -56,9 +56,9 @@ export function BatchesPage() {
                       {b.batch_code}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-leather-200">
-                      <div>
-                        <p className="font-semibold text-leather-300">{b.name}</p>
-                        {b.description && <p className="text-xs text-leather-50/70">{b.description}</p>}
+                      <div className="max-w-[250px]">
+                        <p className="font-semibold text-leather-300 truncate">{b.name}</p>
+                        {b.description && <p className="text-xs text-leather-50/70 truncate">{b.description}</p>}
                       </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">

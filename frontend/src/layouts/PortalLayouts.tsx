@@ -11,6 +11,7 @@ import {
   Layers,
   LogOut,
   Menu,
+  MonitorPlay,
   RefreshCcw,
   ScrollText,
   Settings,
@@ -33,6 +34,7 @@ const NAV = [
   { to: "/admin/leaderboards", label: "Leaderboards", icon: Trophy },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/reports", label: "Reports", icon: FileText },
+  { to: "/admin/sandbox", label: "Sandbox", icon: MonitorPlay },
   { to: "/admin/settings", label: "Settings", icon: Settings },
   { to: "/admin/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
@@ -159,20 +161,18 @@ export function StudentLayout() {
   const links = [
     { to: "/student/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/student/leaderboard", label: "Leaderboard", icon: Trophy },
-    { to: "/student/profile", label: "Profile", icon: BookOpen },
   ];
 
   const handleLogout = () => logout.mutate(undefined, { onSuccess: () => navigate("/login") });
 
+  const [profileOpen, setProfileOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-cream-100">
       <header className="sk-header sticky top-0 z-20">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-          <NavLink to="/student/dashboard" className="flex flex-col items-center gap-1.5 mt-2 mb-2">
-            <img src="/logo.png" alt="Technical Hub" className="h-12 w-auto object-contain drop-shadow-card-pill" />
-            <div className="hidden sm:block">
-              <p className="text-xs font-extrabold leading-none text-leather-300">Student Portal</p>
-            </div>
+        <div className="flex h-20 w-full items-center gap-6 px-4 sm:px-8">
+          <NavLink to="/student/dashboard" className="flex items-center">
+            <img src="/logo.png" alt="Technical Hub" className="h-16 w-auto object-contain drop-shadow-card-pill" />
           </NavLink>
           <nav className="ml-4 hidden items-center gap-1 sm:flex">
             {links.map(({ to, label, icon: Icon }) => (
@@ -191,15 +191,42 @@ export function StudentLayout() {
               </NavLink>
             ))}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
-            <div
-              className="hidden h-9 w-9 items-center justify-center rounded-full text-xs font-bold sm:flex sk-icon-disc text-leather-300"
+          <div className="ml-auto relative flex items-center gap-2">
+            <button
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="flex items-center gap-2 rounded-2xl p-1 hover:bg-cream-200/50 transition focus:outline-none"
             >
-              {(session?.full_name || session?.email || "?").slice(0, 1).toUpperCase()}
-            </div>
-            <button onClick={handleLogout} className="btn-secondary inline-flex items-center gap-1.5 rounded-2xl px-2.5 py-1.5 text-xs font-bold">
-              <LogOut size={13} /> <span className="hidden sm:inline">Logout</span>
+              <div className="h-10 w-10 flex items-center justify-center rounded-full text-sm font-bold sk-icon-disc text-leather-300">
+                {(session?.full_name || session?.email || "?").slice(0, 1).toUpperCase()}
+              </div>
             </button>
+            {profileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-cream-100 shadow-card py-2 z-50">
+                <div className="px-4 py-2 border-b border-leather-300/10 mb-2">
+                  <p className="text-sm font-bold text-leather-300 truncate">{session?.roll_number || session?.full_name || "Student"}</p>
+                  <p className="text-xs text-leather-300/70 truncate">{session?.email}</p>
+                </div>
+                <NavLink
+                  to="/student/profile"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-leather-300 hover:shadow-recess transition mx-2 rounded-xl"
+                >
+                  <BookOpen size={16} />
+                  Profile
+                </NavLink>
+                <button
+                  onClick={() => {
+                    setProfileOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex w-[calc(100%-1rem)] mx-2 items-center gap-2 px-4 py-2 text-sm font-bold text-red-600 hover:shadow-recess transition rounded-xl mt-1"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            )}
+            
             <button
               className="rounded-2xl p-2 sm:hidden text-leather-300"
               onClick={() => setMenuOpen((o) => !o)}

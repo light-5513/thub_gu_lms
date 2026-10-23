@@ -8,19 +8,9 @@ import type { Student } from "@/types";
 import { ConfirmDialog, Modal, useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
 import { Heatmap } from "@/components/ui/heatmap";
+import { PLATFORM_META } from "@/constants/codingPlatforms";
 
-import { SiLeetcode, SiCodechef, SiCodeforces, SiHackerrank, SiHackerearth, SiGeeksforgeeks, SiGithub } from "react-icons/si";
 
-const PLATFORM_META: Record<string, { label: string; icon?: React.ElementType }> = {
-  github: { label: "GitHub", icon: SiGithub },
-  leetcode: { label: "LeetCode", icon: SiLeetcode },
-  codechef: { label: "CodeChef", icon: SiCodechef },
-  codeforces: { label: "Codeforces", icon: SiCodeforces },
-  atcoder: { label: "AtCoder" },
-  hackerrank: { label: "HackerRank", icon: SiHackerrank },
-  hackerearth: { label: "HackerEarth", icon: SiHackerearth },
-  geeksforgeeks: { label: "GeeksForGeeks", icon: SiGeeksforgeeks },
-};
 
 function extractUsername(platform: string, url: string) {
   try {

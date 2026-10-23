@@ -120,10 +120,10 @@ export function StudentsPage() {
                 <tr key={s.id} className="hover:bg-cream-100/70">
                   <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs font-semibold text-leather-200">{s.roll_number}</td>
                   <td className="px-4 py-2.5">
-                    <p className="font-medium text-leather-300">{s.first_name} {s.last_name}</p>
-                    <p className="text-[11px] text-leather-50/80">Section {s.section}</p>
+                    <p className="font-medium text-leather-300 truncate max-w-[200px]">{s.first_name} {s.last_name}</p>
+                    <p className="text-[11px] text-leather-50/80 truncate max-w-[200px]">Section {s.section}</p>
                   </td>
-                  <td className="max-w-[220px] truncate px-4 py-2.5 text-xs text-leather-50/80">{s.email}</td>
+                  <td className="max-w-[200px] truncate px-4 py-2.5 text-xs text-leather-50/80">{s.email}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-xs text-leather-200">{s.course} · {s.branch}</td>
                   <td className="px-4 py-2.5">
                     <Badge tone={s.status === "active" ? "green" : "gray"}>{s.status}</Badge>

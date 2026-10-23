@@ -11,6 +11,24 @@ export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
 
+// Sandbox Token extraction
+let memorySandboxToken: string | null = null;
+const urlParams = new URLSearchParams(window.location.search);
+const tokenParam = urlParams.get("sandbox_token");
+if (tokenParam) {
+  memorySandboxToken = tokenParam;
+  // Clean up URL so it doesn't linger
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+
+// Intercept requests to add sandbox token dynamically if present
+api.interceptors.request.use((config) => {
+  if (memorySandboxToken) {
+    config.headers["Authorization"] = `Bearer ${memorySandboxToken}`;
+  }
+  return config;
+});
+
 // Endpoints whose own 401s must never trigger a refresh/redirect cycle
 // (they are the *cause* of authentication, or merely probe session state).
 function isAuthEndpoint(url: string): boolean {
@@ -23,9 +41,12 @@ api.interceptors.response.use(
     const original = error.config;
     const status = error.response?.status;
     const url: string = original?.url ?? "";
-
-    // Access token expired mid-session: try one silent refresh, then replay.
     if (status === 401 && original && !original._retry && !isAuthEndpoint(url)) {
+      if (memorySandboxToken) {
+        memorySandboxToken = null;
+        window.location.href = "/";
+        return Promise.reject(error);
+      }
       original._retry = true;
       try {
         await api.post("/auth/refresh");
@@ -33,6 +54,8 @@ api.interceptors.response.use(
       } catch {
         onUnauthorized?.();
       }
+    } else if (status === 401 && isAuthEndpoint(url) && memorySandboxToken) {
+        memorySandboxToken = null;
     }
     return Promise.reject(error);
   }

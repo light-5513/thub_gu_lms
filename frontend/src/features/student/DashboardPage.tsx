@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { useAttendanceRecords, useHeatmap, useStudentDashboard } from "@/api/hooks";
-import { Card, CardHeader, ProgressBar, StatCard, StatCardSkeleton, Skeleton, EmptyState } from "@/components/ui/display";
+import { Card, CardHeader, ProgressBar, StatCard, StatCardSkeleton, Skeleton, EmptyState, Row } from "@/components/ui/display";
 import { Heatmap } from "@/components/ui/heatmap";
 import { Badge } from "@/components/ui/display";
 import { format, subDays } from "date-fns";
@@ -176,13 +176,3 @@ export function StudentDashboardPage() {
   );
 }
 
-function Row({ label, value, dot }: { label: string; value: number; dot: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <dt className="inline-flex items-center gap-1.5 capitalize">
-        <span className={`h-2 w-2 rounded-full ${dot}`} /> {label}
-      </dt>
-      <dd className="font-semibold text-leather-300">{value}</dd>
-    </div>
-  );
-}
