@@ -52,7 +52,7 @@ If unset, emails are skipped and logged as failed (`email_logs`) — flows still
 
 ## WhatsApp invitations
 
-Invitations can be sent by email, WhatsApp, or both. The Render Docker container starts the Node service in `whatsapp-api/` alongside the LMS API. It runs `whatsapp-web.js`, uses an internal loopback URL, and stores its linked-device session in MongoDB GridFS. Locally, you can run the Node service separately. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
+Invitations can be sent by email, WhatsApp, or both. The Render Docker container starts the Node service in `whatsapp-api/` alongside the LMS API. It runs `whatsapp-web.js`, uses an internal loopback URL, and stores its linked-device session in MongoDB GridFS. The Node API starts with the LMS; Chromium is initialized when the Invitations page checks WhatsApp status or a WhatsApp invitation is queued. Locally, you can run the Node service separately. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
 
 | Variable | Example | Purpose |
 |---|---|---|

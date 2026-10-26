@@ -91,15 +91,17 @@ the container sets `WHATSAPP_API_URL` automatically. Both processes share the
 LMS MongoDB settings; the WhatsApp session is stored in MongoDB GridFS, so it
 does not need a Render disk. The container uses the LMS app secret to derive
 stable internal API and outbox keys if Render has not supplied explicit
-WhatsApp keys.
+WhatsApp keys. The Node API starts with the LMS, while Chromium starts only
+when the Invitations page checks WhatsApp status or a WhatsApp invitation is
+queued. This avoids browser startup memory use during normal LMS login.
 
 Render Free services sleep after 15 minutes without inbound requests. When the
-LMS wakes, the container starts both APIs and WhatsApp reconnects from its
-MongoDB session; it may take about a minute and may require scanning a new QR.
-Free compute is limited to 512 MB, so the combined Python app and Chromium
-browser may exceed available memory. The container restarts the WhatsApp
-process if it exits, but sustained memory pressure can still make WhatsApp
-unavailable.
+LMS wakes, the container starts both APIs. WhatsApp reconnects from its
+MongoDB session when its status is first requested; it may take about a minute
+and may require scanning a new QR. Free compute is limited to 512 MB, so using
+the Python app and Chromium together may still exceed available memory. The
+container restarts the WhatsApp process if it exits, but sustained memory
+pressure can still make WhatsApp unavailable.
 
 When moving from an old separate `lms-whatsapp-api` or
 `lms-whatsapp-api-free` service, suspend it before deploying the combined

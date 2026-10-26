@@ -23,7 +23,7 @@ const sendIntervalMs = Number(process.env.WHATSAPP_SEND_INTERVAL_MS || 2000);
 const mongoUri = process.env.WHATSAPP_MONGODB_URI || process.env.MONGODB_URI || "";
 const databaseName = process.env.MONGODB_DATABASE || "lms";
 
-let state = "starting";
+let state = "idle";
 let qrDataUrl = null;
 let lastError = null;
 let sessionSaved = false;
@@ -34,6 +34,7 @@ let outbox;
 let invitations;
 let outboxWorker;
 let shuttingDown = false;
+let whatsappInitializationRequested = false;
 
 function requireConfig() {
   const missing = [];
@@ -203,6 +204,20 @@ async function initializeWhatsAppClient() {
       }
     }
   }
+}
+
+function requestWhatsAppInitialization() {
+  if (whatsappInitializationRequested || shuttingDown) return;
+  whatsappInitializationRequested = true;
+  state = "starting";
+  lastError = null;
+  console.log("WhatsApp browser initialization requested.");
+  void initializeWhatsAppClient().catch((error) => {
+    state = "error";
+    lastError = String(error?.message || "WhatsApp initialization failed").slice(0, 300);
+    console.error("WhatsApp initialization stopped unexpectedly:", lastError);
+    whatsappInitializationRequested = false;
+  });
 }
 
 function safeEqual(left, right) {
@@ -403,6 +418,7 @@ async function main() {
   app.use(express.json({ limit: "16kb" }));
   app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/status", authenticate, (_req, res) => {
+    requestWhatsAppInitialization();
     res.json({
       state,
       qr_data_url: qrDataUrl,
@@ -436,6 +452,7 @@ async function main() {
         status: "queued",
         created_at: new Date(),
       });
+      requestWhatsAppInitialization();
       return res.status(202).json({ ok: true, job_id: result.insertedId.toString(), status: "queued" });
     } catch (error) {
       console.error("WhatsApp message could not be queued:", error.message);
@@ -444,7 +461,6 @@ async function main() {
   });
 
   app.listen(port, bindHost, () => console.log(`WhatsApp API listening on ${bindHost}:${port}`));
-  await initializeWhatsAppClient();
 }
 
 main().catch((error) => {
