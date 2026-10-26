@@ -57,6 +57,7 @@ Invitations can be sent by email, WhatsApp, or both. WhatsApp messages are queue
 | Variable | Example | Purpose |
 |---|---|---|
 | `WHATSAPP_API_URL` | `http://localhost:10000` | Private WhatsApp service address (`host:port` is also accepted) |
+| `WHATSAPP_API_PORT` | `10001` | Loopback port used by the embedded WhatsApp API in the Render Docker container |
 | `WHATSAPP_API_TOKEN` | generated secret | Authenticates requests from the LMS API to the WhatsApp service |
 | `WHATSAPP_OUTBOX_KEY` | private random secret | Encrypts invitation links while they wait in the Node service's MongoDB outbox |
 | `WHATSAPP_MONGODB_URI` | optional | Node-specific MongoDB URI override; useful when Windows Node cannot resolve the Atlas `mongodb+srv` record |
