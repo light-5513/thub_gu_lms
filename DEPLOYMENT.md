@@ -88,15 +88,14 @@ for the connection status to show ready. Enter each recipient's phone number
 in international format.
 
 The Render blueprint adds a private `lms-whatsapp-api` service and connects it
-to the LMS with generated API and outbox-encryption keys. It uses a paid
+to the LMS with generated API and outbox-encryption keys. It also copies
+`MONGODB_URI` and `MONGODB_DATABASE` from the LMS service so both use the same
+database. It uses a paid
 `standard` compute plan because a WhatsApp Web browser needs an always-on
 service; the service stores its login session in MongoDB, so it does not need
-a Render disk. Set the WhatsApp service's `MONGODB_URI` to the same MongoDB
-connection string used by the LMS. Render prompts for `sync: false` values on
-initial Blueprint creation; when adding this service to an existing Blueprint,
-set that value in the service's Environment page if it was not prompted. Keep
-both services in the same Render region. After deployment, open the Invitations page and scan the
-QR to link the sender account. The private service plan adds a Render charge.
+a Render disk. Keep both services in the same Render region. After deployment,
+open the Invitations page and scan the QR to link the sender account. The
+private service plan adds a Render charge.
 
 Invitations are accepted into a durable encrypted outbox. The page reports
 queued, sent, or failed delivery status and refreshes while invitations are

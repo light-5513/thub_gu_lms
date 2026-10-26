@@ -63,6 +63,12 @@ services:
       - key: WHATSAPP_SESSION_NAME
         value: lms-invitations
       - key: MONGODB_URI
-        sync: false
+        fromService:
+          name: lms
+          type: web
+          envVarKey: MONGODB_URI
       - key: MONGODB_DATABASE
-        value: lms
+        fromService:
+          name: lms
+          type: web
+          envVarKey: MONGODB_DATABASE
