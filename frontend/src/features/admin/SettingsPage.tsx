@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { useSettings, useUpdateSettings } from "@/api/hooks";
 import type { AppSettings } from "@/types";
-import { Card, CardHeader, Skeleton } from "@/components/ui/display";
+import { Card, CardHeader, ErrorState, Skeleton } from "@/components/ui/display";
 import { Button, FormField, Input, Select } from "@/components/ui/forms";
 import { useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
 
 export function SettingsPage() {
-  const { data, isLoading } = useSettings();
+  const { data, isLoading, isError, error, refetch } = useSettings();
   const update = useUpdateSettings();
   const toast = useToast();
   const [form, setForm] = useState<Partial<AppSettings>>({});
@@ -17,8 +17,9 @@ export function SettingsPage() {
     if (data) setForm(data);
   }, [data]);
 
-  if (isLoading || form.institution_name === undefined) return <Skeleton className="h-96 w-full rounded-xl" />;
-  if (!data) return null;
+  if (isLoading) return <Skeleton className="h-96 w-full rounded-xl" />;
+  if (isError || !data) return <Card><ErrorState message={errorMessage(error)} onRetry={() => { void refetch(); }} /></Card>;
+  if (form.institution_name === undefined) return <Skeleton className="h-96 w-full rounded-xl" />;
 
   const setWeight = (key: string, value: string) =>
     setForm((f) => ({ ...f, leaderboard_weights: { ...(f.leaderboard_weights ?? {}), [key]: Number(value) } }));
@@ -38,8 +39,8 @@ export function SettingsPage() {
   return (
     <div className="max-w-4xl space-y-5 animate-fade-in">
       <div>
-        <h1 className="text-lg font-bold text-leather-300">Settings</h1>
-        <p className="text-xs text-leather-50/80">Database-backed configuration — changes apply instantly and are audit logged.</p>
+        <h1 className="page-title">Settings</h1>
+        <p className="page-description">Database-backed configuration — changes apply instantly and are audit logged.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -53,7 +54,7 @@ export function SettingsPage() {
               <Input value={form.academic_year ?? ""} onChange={(e) => setForm({ ...form, academic_year: e.target.value })} placeholder="2025-26" />
             </FormField>
             <FormField label="Timezone">
-              <Select value={form.timezone ?? "Asia/Kolkata"} onChange={(e) => setForm({ ...form, timezone: e.target.value })}>
+              <Select aria-label="Timezone" value={form.timezone ?? "Asia/Kolkata"} onChange={(e) => setForm({ ...form, timezone: e.target.value })}>
                 {["Asia/Kolkata", "UTC", "America/New_York", "Europe/London", "Asia/Singapore"].map((tz) => (
                   <option key={tz}>{tz}</option>
                 ))}
@@ -76,7 +77,7 @@ export function SettingsPage() {
             />
           </FormField>
           <div className="mt-4 space-y-2.5 text-xs text-leather-200">
-            <label className="flex items-center justify-between rounded-[20px] bg-cream-100 px-3 py-2">
+            <label className="neo-inset-surface flex items-center justify-between gap-4 rounded-2xl px-4 py-3">
               Late counts as present (streak)
               <input
                 type="checkbox"
@@ -85,7 +86,7 @@ export function SettingsPage() {
                 className="accent-primary-600"
               />
             </label>
-            <label className="flex items-center justify-between rounded-[20px] bg-cream-100 px-3 py-2">
+            <label className="neo-inset-surface flex items-center justify-between gap-4 rounded-2xl px-4 py-3">
               Leave breaks streak
               <input
                 type="checkbox"
@@ -94,7 +95,7 @@ export function SettingsPage() {
                 className="accent-primary-600"
               />
             </label>
-            <label className="flex items-center justify-between rounded-[20px] bg-cream-100 px-3 py-2">
+            <label className="neo-inset-surface flex items-center justify-between gap-4 rounded-2xl px-4 py-3">
               Absent breaks streak
               <input
                 type="checkbox"
@@ -156,7 +157,7 @@ export function SettingsPage() {
       </div>
 
       <div className="sticky bottom-4 flex justify-end">
-        <Button loading={update.isPending} onClick={save} size="lg" className="shadow-card-card-lg">
+        <Button loading={update.isPending} onClick={save} size="lg" className="shadow-card-lg">
           <Save size={15} /> Save settings
         </Button>
       </div>

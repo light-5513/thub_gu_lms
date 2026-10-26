@@ -69,7 +69,7 @@ export function ResetPasswordPage() {
         <FormField label="Confirm password" error={errors.confirm?.message}>
           <Input type="password" autoComplete="new-password" {...register("confirm")} />
         </FormField>
-        {error && <div className="rounded-[20px] bg-neutral-100 px-3 py-2 text-xs text-black">{error}</div>}
+        {error && <div className="neo-alert neo-alert-danger px-3 py-2 text-sm" role="alert">{error}</div>}
         <Button type="submit" className="w-full" loading={reset.isPending}>
           Update password
         </Button>

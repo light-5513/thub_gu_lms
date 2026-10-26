@@ -1,6 +1,8 @@
 """Admin API endpoints for Batch management."""
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from datetime import date
+
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.deps import get_db, require_staff
@@ -15,6 +17,10 @@ from app.schemas.batch import (
 )
 from app.schemas.student import StudentListResponse
 from app.services.batch_service import BatchService
+from app.services.batch_monitor_service import BatchMonitorService
+from app.services.coding_activity_service import normalize_activity_range
+from app.integrations.activity_time import get_activity_timezone
+from app.services.settings_service import SettingsService
 
 router = APIRouter(prefix="/admin", tags=["admin-batches"])
 
@@ -34,7 +40,6 @@ async def list_batches(
 @router.post("/batches", response_model=BatchOut)
 async def create_batch(
     req: BatchCreate,
-    BatchUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
     admin: dict = Depends(require_staff),
 ):
@@ -93,6 +98,39 @@ async def get_batch_students(
     """List students within a specific batch."""
     service = BatchService(db)
     return await service.get_batch_students(batch_id, page, page_size)
+
+
+@router.get("/batches/{batch_id}/monitor")
+async def monitor_batch(
+    batch_id: str,
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    admin: dict = Depends(require_staff),
+):
+    """Monitor current batch members within an inclusive date interval."""
+    timezone_name = get_activity_timezone(
+        await SettingsService(db).get("timezone", "Asia/Kolkata")
+    ).key
+    start, end = normalize_activity_range(start_date, end_date, timezone_name)
+    return await BatchMonitorService(db).summary(batch_id, start, end, timezone_name)
+
+
+@router.delete("/batches/{batch_id}/students/{student_id}", status_code=204)
+async def remove_batch_student(
+    batch_id: str,
+    student_id: str,
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    admin: dict = Depends(require_staff),
+):
+    """Remove only the batch assignment; preserve student and attendance data."""
+    from app.core.rate_limit import client_ip
+
+    service = BatchService(db)
+    await service.remove_student(
+        batch_id, student_id, actor=admin, ip=client_ip(request)
+    )
 
 
 @router.patch("/batches/{batch_id}", response_model=BatchOut)

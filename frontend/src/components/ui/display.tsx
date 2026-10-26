@@ -3,15 +3,15 @@ import { clsx } from "clsx";
 
 // ---------------------------------------------------------------- Card
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={clsx("card p-5", className)}>{children}</div>;
+  return <div className={clsx("card card-content", className)}>{children}</div>;
 }
 
 export function CardHeader({ title, subtitle, action }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
-      <div>
-        <h3 className="text-sm font-bold text-leather-300">{title}</h3>
-        {subtitle && <p className="mt-0.5 text-xs text-leather-50/80">{subtitle}</p>}
+      <div className="min-w-0">
+        <h3 className="text-base font-semibold text-leather-300">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-sm text-leather-50">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -33,26 +33,26 @@ export function StatCard({
   tone?: "default" | "success" | "warning" | "danger" | "info";
 }) {
   const iconTones: Record<string, string> = {
-    default: "text-leather-200",
-    success: "text-primary-500",
-    warning: "text-leather-300",
-    danger:  "text-leather-200",
-    info:    "text-primary-500",
+    default: "text-leather-100",
+    success: "text-success-700",
+    warning: "text-warning-700",
+    danger: "text-danger-700",
+    info: "text-info-700",
   };
   return (
-    <div className="card flex items-center gap-4 p-4 transition-shadow-card hover:shadow-card-lg">
+    <div className="card flex min-h-28 items-center gap-4 p-5">
       {icon && (
         <div className={clsx(
-          "sk-icon-disc flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--bg)]",
+          "sk-icon-disc flex h-12 w-12 shrink-0 items-center justify-center rounded-full 2xl:h-[3.75rem] 2xl:w-[3.75rem]",
           iconTones[tone]
         )}>
           {icon}
         </div>
       )}
       <div className="min-w-0">
-        <p className="truncate text-[10px] font-bold uppercase tracking-wider text-leather-50/80">{label}</p>
-        <p className="text-xl font-bold text-leather-300">{value}</p>
-        {hint && <p className="text-[11px] text-leather-50/70">{hint}</p>}
+        <p className="text-xs font-semibold uppercase text-leather-50">{label}</p>
+        <p className="mt-1 text-2xl font-semibold leading-tight text-leather-300">{value}</p>
+        {hint && <p className="mt-1 text-xs leading-relaxed text-leather-50">{hint}</p>}
       </div>
     </div>
   );
@@ -60,18 +60,18 @@ export function StatCard({
 
 // ---------------------------------------------------------------- Badge
 const badgeTones: Record<string, string> = {
-  gray:   "text-leather-300",
-  green:  "text-primary-500",
-  red:    "text-primary-800",
-  amber:  "text-leather-300",
-  blue:   "text-primary-500",
-  purple: "text-purple-500",
+  gray: "text-leather-100",
+  green: "text-success-700",
+  red: "text-danger-700",
+  amber: "text-warning-700",
+  blue: "text-info-700",
+  purple: "text-violet-700",
 };
 
 export function Badge({ children, tone = "gray", className }: { children: ReactNode; tone?: keyof typeof badgeTones; className?: string }) {
   return (
     <span className={clsx(
-      "sk-pill inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold",
+      "sk-pill inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium leading-none",
       badgeTones[tone], className
     )}>
       {children}
@@ -82,34 +82,35 @@ export function Badge({ children, tone = "gray", className }: { children: ReactN
 // ---------------------------------------------------------------- ProgressBar
 export function ProgressBar({ value, max = 100, tone }: { value: number; max?: number; tone?: "auto" | "blue" }) {
   const pct = Math.max(0, Math.min(100, (value / (max || 1)) * 100));
-  const color =
-    tone === "blue"
-      ? "bg-gradient-to-b from-blue-400 to-blue-700"
-      : pct >= 75
-        ? "bg-gradient-to-b from-emerald-400 to-emerald-700"
-        : pct >= 50
-          ? "bg-gradient-to-b from-amber-400 to-amber-700"
-          : "bg-gradient-to-b from-red-400 to-red-700";
+  const color = tone === "blue"
+    ? "bg-gradient-to-b from-info-100 to-info-700"
+    : pct >= 75
+      ? "bg-gradient-to-b from-success-100 to-success-700"
+      : pct >= 50
+        ? "bg-gradient-to-b from-warning-100 to-warning-700"
+        : "bg-gradient-to-b from-danger-100 to-danger-700";
   return (
     <div
-      className="h-2 w-full overflow-hidden rounded-full bg-gradient-to-b from-cream-200 to-cream-300 shadow-card-recess"
+      className="h-2 w-full overflow-hidden rounded-full bg-[var(--bg)] shadow-card-recess"
       role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
       aria-valuenow={pct}
     >
-      <div className={clsx("h-full rounded-full transition-all duration-500 shadow-card-[inset_0_1px_0_rgba(255,255,255,0.4)]", color)} style={{ width: `${pct}%` }} />
+      <div className={clsx("h-full rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.45)] transition-[width] duration-200 ease-out", color)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------- Skeletons
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx("animate-pulse rounded-2xl bg-gradient-to-b from-cream-200 to-cream-300", className)} />;
+  return <div className={clsx("animate-pulse rounded-xl bg-gradient-to-br from-white/55 to-slate-300/35 shadow-card-recess", className)} />;
 }
 
 export function StatCardSkeleton() {
   return (
-    <div className="card flex items-center gap-4 p-4">
-      <Skeleton className="h-12 w-12 rounded-full" />
+    <div className="card flex min-h-28 items-center gap-4 p-5">
+      <Skeleton className="h-12 w-12 shrink-0 rounded-full 2xl:h-[3.75rem] 2xl:w-[3.75rem]" />
       <div className="flex-1 space-y-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-5 w-16" />
@@ -137,12 +138,12 @@ export function EmptyState({ icon, title, description, action }: { icon?: ReactN
   return (
     <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
       {icon && (
-        <div className="sk-icon-disc mb-4 flex h-14 w-14 items-center justify-center rounded-full text-leather-50/70">
+        <div className="sk-icon-disc mb-4 flex h-12 w-12 items-center justify-center rounded-full text-leather-50">
           {icon}
         </div>
       )}
-      <h3 className="text-sm font-bold text-leather-300">{title}</h3>
-      {description && <p className="mt-1 max-w-sm text-xs text-leather-50/80">{description}</p>}
+      <h3 className="text-sm font-semibold text-leather-300">{title}</h3>
+      {description && <p className="mt-1.5 max-w-sm text-sm text-leather-50">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );
@@ -155,7 +156,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
       description={message}
       action={
         onRetry ? (
-          <button onClick={onRetry} className="btn-secondary rounded-2xl px-3 py-1.5 text-xs font-bold">
+          <button onClick={onRetry} className="btn-secondary rounded-full px-4 py-2 text-xs font-semibold">
             Try again
           </button>
         ) : undefined

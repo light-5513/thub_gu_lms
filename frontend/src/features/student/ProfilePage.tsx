@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { Github, Link2, Trash2 } from "lucide-react";
 import { useCodingProfiles, useDeleteCodingProfile, useSaveCodingProfile, useStudentProfile, useUpdateProfile, useHeatmap, useStreak } from "@/api/hooks";
@@ -40,7 +41,7 @@ function getPlatformUrl(platform: string, username: string) {
     atcoder: `https://atcoder.jp/users/${username}`,
     hackerrank: `https://www.hackerrank.com/profile/${username}`,
     hackerearth: `https://www.hackerearth.com/@${username}`,
-    geeksforgeeks: `https://auth.geeksforgeeks.org/user/${username}/`,
+    geeksforgeeks: `https://www.geeksforgeeks.org/profile/${username}`,
   };
   return urls[platform] || username;
 }
@@ -69,8 +70,11 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-leather-300">My profile</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="page-title">My profile</h1>
+          <p className="page-description">Personal information and connected coding profiles</p>
+        </div>
         {!editing ? (
           <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
             Edit profile
@@ -119,7 +123,7 @@ export function ProfilePage() {
               label="Course"
               isEditing={editing}
               value={
-                <Select value={form.course ?? p.course} onChange={(e) => setForm((f) => ({ ...f, course: e.target.value }))}>
+                <Select aria-label="Course" value={form.course ?? p.course} onChange={(e) => setForm((f) => ({ ...f, course: e.target.value }))}>
                   <option>B.Tech</option><option>M.Tech</option><option>BCA</option><option>MCA</option>
                 </Select>
               }
@@ -129,7 +133,7 @@ export function ProfilePage() {
               label="Branch"
               isEditing={editing}
               value={
-                <Select value={form.branch ?? p.branch} onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value }))}>
+                <Select aria-label="Branch" value={form.branch ?? p.branch} onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value }))}>
                   <option>CSE</option><option>IT</option><option>ECE</option><option>EEE</option><option>AIML</option><option>CS</option><option>DS</option>
                 </Select>
               }
@@ -158,14 +162,14 @@ export function ProfilePage() {
 
 function InfoRow({ label, value, isEditing, readOnlyText }: { label: string; value: React.ReactNode; isEditing?: boolean; readOnlyText?: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[130px_1fr] items-center gap-3 mb-2">
-      <dt className="text-[11px] font-extrabold uppercase tracking-widest text-leather-300">{label}</dt>
+    <div className="grid items-center gap-2 sm:grid-cols-[110px_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-xs font-medium text-[var(--text-muted)]">{label}</dt>
       <dd className="min-w-0 w-full">
         {isEditing ? (
           value
         ) : (
-          <div className="flex items-center gap-2 px-4 py-2.5 card-inset border-0 rounded-3xl text-[13px] font-bold text-leather-300">
-            {readOnlyText || value || "—"}
+          <div className="neo-inset-surface flex min-h-10 flex-wrap items-center gap-2 break-all rounded-2xl px-4 py-2.5 text-sm font-medium text-leather-300">
+            {readOnlyText || "—"}
           </div>
         )}
       </dd>
@@ -218,7 +222,11 @@ function CodingProfilesCard() {
 
   return (
     <Card>
-      <CardHeader title="Coding profiles" subtitle="Connect your accounts to appear in coding leaderboards" />
+      <CardHeader
+        title="Coding profiles"
+        subtitle="Connect your accounts to appear in coding leaderboards"
+        action={<Link to="/student/coding" className="text-xs font-semibold text-primary-700 hover:underline">View all stats</Link>}
+      />
       {profiles.isLoading ? (
         <Skeleton className="h-64 w-full" />
       ) : supported.length === 0 ? (
@@ -231,11 +239,11 @@ function CodingProfilesCard() {
             const IconComponent = meta.icon;
             
             return (
-              <li key={platform} className="flex items-center gap-3 rounded-xl p-3">
+              <li key={platform} className="flex flex-wrap items-center gap-3 rounded-2xl py-3">
                 <div className="sk-icon-disc flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-leather-200">
                   {IconComponent ? <IconComponent size={18} /> : <span className="text-xs font-bold">{meta.label.slice(0, 2).toUpperCase()}</span>}
                 </div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-[calc(100%-4rem)] sm:basis-0">
                   <p className="text-xs font-semibold text-leather-200">{meta.label}</p>
                   {conn ? (
                     <p className="truncate text-[11px] text-leather-50/80">
@@ -245,14 +253,14 @@ function CodingProfilesCard() {
                   ) : (
                     <p className="text-[11px] italic text-leather-50/80">Not connected</p>
                   )}
-                  {conn?.sync_status === "failed" && <p className="text-[11px] text-black">{conn.sync_error}</p>}
+                  {conn?.sync_status === "failed" && <p className="mt-1 text-xs text-danger-700">{conn.sync_error}</p>}
                 </div>
                 {conn && (
                   <Badge tone={conn.sync_status === "success" ? "green" : conn.sync_status === "failed" ? "red" : "gray"}>{(conn.sync_status ?? "unknown").replace("_", " ")}</Badge>
                 )}
                 <div className="flex items-center gap-1">
                   {conn?.profile_url && (
-                    <a href={conn.profile_url} target="_blank" rel="noreferrer" className="rounded-2xl p-1.5 text-leather-50/80 hover:bg-cream-300/70" title="Open profile">
+                    <a href={conn.profile_url} target="_blank" rel="noreferrer" className="rounded-full p-2 text-leather-50/80 hover:shadow-card-recess" title="Open profile">
                       <Link2 size={14} />
                     </a>
                   )}
@@ -260,7 +268,7 @@ function CodingProfilesCard() {
                     {conn ? "Edit" : "Connect"}
                   </Button>
                   {conn && (
-                    <button onClick={() => setDeleteTarget(platform)} className="rounded-2xl p-1.5 text-leather-50/80 hover:bg-neutral-100 hover:text-black" title="Remove">
+                    <button onClick={() => setDeleteTarget(platform)} className="rounded-full p-2 text-[var(--text-muted)] hover:shadow-card-recess hover:text-danger-700" title="Remove">
                       <Trash2 size={14} />
                     </button>
                   )}

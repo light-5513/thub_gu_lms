@@ -128,6 +128,7 @@ class InvitationService:
                         "section": data.get("section", "").strip(),
                         "phone": (data.get("phone") or "").strip() or None,
                         "user_id": user_id,
+                        "status": "active",
                         "attendance_count": 0,
                         "streak": 0,
                         "overall_score": 0.0,

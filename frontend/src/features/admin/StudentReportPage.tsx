@@ -17,11 +17,8 @@ import {
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   PolarAngleAxis,
@@ -55,23 +52,18 @@ import {
 import { Button, Select } from "@/components/ui/forms";
 import { Dropdown, DropdownItem } from "@/components/ui/navigation";
 import { errorMessage } from "@/api/client";
+import { CodingInsightsPanel } from "@/components/coding/CodingInsightsPanel";
 
 const STATUS_COLORS: Record<string, string> = {
-  present: "#10b981",
-  late: "#f59e0b",
-  absent: "#ef4444",
-  leave: "#8b5cf6",
+  present: "#16803f",
+  late: "#dc8a11",
+  absent: "#d92d20",
+  leave: "#64748b",
 };
+const GRID_COLOR = "var(--border)";
+const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 12, backgroundColor: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", boxShadow: "var(--neo-out-sm)" };
 
-const PLATFORM_COLORS: Record<string, string> = {
-  github: "#0f172a",
-  leetcode: "#f59e0b",
-  codechef: "#a16207",
-  codeforces: "var(--text)",
-  atcoder: "#7c3aed",
-  hackerrank: "#10b981",
-  hackerearth: "#0ea5e9",
-};
+const codingMetricLabel = (metric: string) => metric.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export function StudentReportPage() {
   const { id } = useParams<{ id: string }>();
@@ -142,7 +134,7 @@ function ReportView({
           <ArrowLeft size={14} /> Back to students
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={String(days)} onChange={(e) => setDays(Number(e.target.value))} className="!py-1.5 !text-xs">
+          <Select aria-label="Report period" value={String(days)} onChange={(e) => setDays(Number(e.target.value))} className="!py-1.5 !text-xs">
             <option value="30">Last 30 days</option>
             <option value="60">Last 60 days</option>
             <option value="90">Last 90 days</option>
@@ -182,14 +174,12 @@ function ReportView({
             color: "var(--text)",
           }}
         >
-          <div
-            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl text-2xl font-bold"
-          >
+          <div className="sk-icon-disc flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl text-2xl font-semibold">
             {profile.name ? profile.name.slice(0, 1).toUpperCase() : "?"}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight">{profile.name || "—"}</h1>
+              <h1 className="page-title">{profile.name || "—"}</h1>
               {profile.status === "active" ? (
                 <Badge tone="green">Active</Badge>
               ) : (
@@ -198,7 +188,7 @@ function ReportView({
               {attendance.is_low && <Badge tone="red">Low attendance</Badge>}
               {leaderboard.rank === 1 && <Badge tone="blue">Top performer</Badge>}
             </div>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-primary-500/90">
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
               {profile.roll_number && (
                 <span className="inline-flex items-center gap-1">
                   <Hash size={12} /> {profile.roll_number}
@@ -215,7 +205,7 @@ function ReportView({
                 </span>
               )}
             </div>
-            <div className="mt-2 text-xs text-primary-500/80">
+            <div className="mt-2 text-xs text-[var(--text-muted)]">
               {[profile.course, profile.branch, profile.section ? `Section ${profile.section}` : null]
                 .filter(Boolean)
                 .join(" · ") || "—"}
@@ -277,26 +267,26 @@ function ReportView({
                 <AreaChart data={attendance_trend}>
                   <defs>
                     <linearGradient id="att-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#000000" stopOpacity={0.5} />
-                      <stop offset="100%" stopColor="#000000" stopOpacity={0.02} />
+                      <stop offset="0%" stopColor="var(--text)" stopOpacity={0.2} />
+                      <stop offset="100%" stopColor="var(--text)" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#a3a3a3" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
                   <XAxis
                     dataKey="date"
-                    tick={{ fontSize: 10, fill: "#a3a3a3" }}
+                    tick={{ fontSize: 10, fill: "var(--text-muted)" }}
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(d) => (d ? format(new Date(d), "d MMM") : "")}
                     interval={Math.max(0, Math.floor(attendance_trend.length / 8))}
                   />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#a3a3a3" }} tickLine={false} axisLine={false} unit="%" />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} unit="%" />
                   <ChartTooltip
-                    contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: "#272d36", border: "1px solid rgba(255, 255, 255, 0.30)" }}
+                    contentStyle={TOOLTIP_STYLE}
                     formatter={(v: number) => [`${v}%`, "Present"]}
                     labelFormatter={(l) => format(new Date(l), "EEE d MMM yyyy")}
                   />
-                  <Area type="monotone" dataKey="percentage" name="Present %" stroke="var(--text)" strokeWidth={2} fill="url(#att-fill)" />
+                  <Area type="monotone" dataKey="percentage" name="Present %" stroke="var(--text)" strokeWidth={2.5} fill="url(#att-fill)" />
                 </AreaChart>
               </ResponsiveContainer>
             )}
@@ -324,11 +314,11 @@ function ReportView({
                       paddingAngle={2}
                     >
                       {distributionData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} stroke="var(--text)" strokeWidth={2} />
+                        <Cell key={i} fill={entry.color} stroke="white" strokeWidth={2} />
                       ))}
                     </Pie>
                     <ChartTooltip
-                      contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: "#272d36", border: "1px solid rgba(255, 255, 255, 0.30)" }}
+                      contentStyle={TOOLTIP_STYLE}
                       formatter={(v: number, n: string) => [`${v}`, n]}
                     />
                   </PieChart>
@@ -357,10 +347,10 @@ function ReportView({
           <p className="mb-1 text-3xl font-bold text-leather-300">{attPct ?? "—"}%</p>
           <ProgressBar value={attPct ?? 0} />
           <dl className="mt-4 space-y-2 text-xs text-leather-200">
-            <Row label="Present" value={attendance.present} dot="bg-neutral-100" />
-            <Row label="Late" value={attendance.late} dot="bg-neutral-100" />
-            <Row label="Absent" value={attendance.absent} dot="bg-neutral-100" />
-            <Row label="Leave" value={attendance.leave} dot="bg-neutral-100" />
+            <Row label="Present" value={attendance.present} dot="bg-success-500" />
+            <Row label="Late" value={attendance.late} dot="bg-warning-500" />
+            <Row label="Absent" value={attendance.absent} dot="bg-danger-500" />
+            <Row label="Leave" value={attendance.leave} dot="bg-slate-500" />
             <Row label="Total classes" value={attendance.total_classes} dot="bg-leather-300" />
           </dl>
         </Card>
@@ -394,11 +384,11 @@ function ReportView({
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid stroke="var(--text)" />
-                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "var(--text)" }} />
-                <Radar name="Score" dataKey="value" stroke="var(--text)" fill="var(--text)" fillOpacity={0.4} />
+                <PolarGrid stroke="var(--border)" />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: "var(--text-muted)" }} />
+                <Radar name="Score" dataKey="value" stroke="#15803d" fill="#15803d" fillOpacity={0.2} />
                 <ChartTooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: "#272d36", border: "1px solid rgba(255, 255, 255, 0.30)" }}
+                  contentStyle={TOOLTIP_STYLE}
                   formatter={(v: number) => [`${v.toFixed(1)}`, "Score"]}
                 />
               </RadarChart>
@@ -428,7 +418,7 @@ function ReportView({
                 return (
                   <div
                     key={p.platform}
-                    className="rounded-[20px] border border-leather-50/15 p-3"
+                    className="neo-inset-surface rounded-2xl p-4"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
@@ -446,16 +436,17 @@ function ReportView({
                         </Badge>
                       )}
                     </div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-leather-50/70">Rating</p>
-                        <p className="text-base font-bold text-leather-300">{p.rating ?? "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-leather-50/70">Solved</p>
-                        <p className="text-base font-bold text-leather-300">{p.problems_solved}</p>
-                      </div>
-                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                      {Object.entries(p.statistics ?? {})
+                        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+                        .slice(0, 6)
+                        .map(([metric, value]) => (
+                          <div key={metric} className="card-inset min-w-0 rounded-xl p-2">
+                            <dt className="truncate text-[10px] font-bold uppercase tracking-wider text-leather-50/70">{codingMetricLabel(metric)}</dt>
+                            <dd className="mt-0.5 truncate text-sm font-bold text-leather-300">{typeof value === "number" ? value.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value}</dd>
+                          </div>
+                        ))}
+                    </dl>
                     {(p.last_synced || p.fetched_at) && (
                       <p className="mt-2 text-[10px] text-leather-50/70">
                         Last synced{" "}
@@ -481,18 +472,18 @@ function ReportView({
               <p className="text-3xl font-bold text-leather-300">{leaderboard.overall_score.toFixed(1)}</p>
             </div>
             <div className="grid grid-cols-2 gap-2 text-center">
-              <div className="rounded-2xl border border-leather-50/15 bg-cream-200 p-2.5">
+              <div className="card-inset rounded-2xl p-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-leather-50/80">Rank</p>
                 <p className="text-lg font-bold text-leather-300">
                   {leaderboard.rank ? `#${leaderboard.rank}` : "—"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-leather-50/15 bg-cream-200 p-2.5">
+              <div className="card-inset rounded-2xl p-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-leather-50/80">Of</p>
                 <p className="text-lg font-bold text-leather-300">{leaderboard.total_students}</p>
               </div>
             </div>
-            <div className="rounded-2xl border border-leather-50/15 bg-cream-200 p-2.5 text-center">
+            <div className="card-inset rounded-2xl p-2.5 text-center">
               <p className="text-[10px] font-bold uppercase tracking-wider text-leather-50/80">Streak</p>
               <p className="text-lg font-bold text-leather-300">
                 {leaderboard.current_streak ?? 0} <span className="text-xs font-medium text-leather-50/80">current</span>
@@ -505,30 +496,7 @@ function ReportView({
         </Card>
       </div>
 
-      {/* Coding performance bar chart (problems solved per platform) */}
-      {coding.platforms.length > 0 && (
-        <Card>
-          <CardHeader title="Problems solved by platform" subtitle="From the most recent sync" />
-          <div className="h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={coding.platforms.map((p) => ({ platform: p.platform, value: p.problems_solved, rating: p.rating ?? 0 }))}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#a3a3a3" vertical={false} />
-                <XAxis dataKey="platform" tick={{ fontSize: 11, fill: "var(--text)" }} tickLine={false} axisLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: "var(--text)" }} tickLine={false} axisLine={false} />
-                <ChartTooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8, backgroundColor: "#272d36", border: "1px solid rgba(255, 255, 255, 0.30)" }}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar dataKey="value" name="Problems solved" radius={[6, 6, 0, 0]}>
-                  {coding.platforms.map((p, i) => (
-                    <Cell key={i} fill={PLATFORM_COLORS[p.platform] ?? "var(--text)"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      )}
+      <CodingInsightsPanel studentId={studentId} heading="Student coding profile details" />
 
       {/* Recent attendance records */}
       <Card className="p-0">

@@ -45,6 +45,7 @@ class CodeChefAdapter(CodingPlatformAdapter):
             data["rating"] = float(latest.get("rating", 0) or 0)
             data["highest_rating"] = float(latest.get("highest_rating", 0) or 0)
             data["global_rank"] = latest.get("global_rank")
+            data["contests"] = len(ratings)
         m2 = re.search(r"stars-rating[^>]*>\s*(\d)", html)
         stars = re.findall(r"(\d)(?:&#9733|\u2605|★)", html)
         if stars:
@@ -76,6 +77,17 @@ class CodeChefAdapter(CodingPlatformAdapter):
             "rank": float(stats.get("global_rank") or 0)
             if stats.get("global_rank")
             else 0.0,
+            "country_rank": float(stats.get("country_rank") or 0),
+            "contests": float(stats.get("contests", 0) or 0),
+            "_daily_activity": [],
+            "_activity_metadata": {
+                "available": False,
+                "metric_key": None,
+                "metric_label": None,
+                "snapshot_delta_key": "problems_solved",
+                "fill_gaps": False,
+                "note": "The public CodeChef profile provides current totals and contest ratings, but not a reliable public day-by-day problem history.",
+            },
         }
 
     def profile_url(self, username: str) -> str:

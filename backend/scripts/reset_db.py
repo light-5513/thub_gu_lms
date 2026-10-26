@@ -1,6 +1,6 @@
 """Drop every collection in the application database (full clean slate).
 
-Run:  python -m scripts.reset_db
+Run from the backend directory:  python -m scripts.reset_db
 Requires MONGODB_URI / MONGODB_DATABASE in .env. Indexes are recreated
 afterwards so the app can start fresh.
 """

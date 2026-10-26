@@ -20,33 +20,17 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 ## Repository layout
 
 ```
-├── app/                  FastAPI application
-├── scripts/              Admin/cleanup Python scripts
-├── tests/                Pytest suite (mongomock, no Atlas needed)
-├── app/
-│   ├── main.py          App factory, lifespan, CORS, security headers,
-│   │                    static-file serving for the built SPA
-│   ├── config.py        Environment-driven settings (incl. FRONTEND_DIST_DIR)
-│   ├── api/v1/          Modular routers (auth, student, admin/*)
-│   ├── core/            Security, deps, rate limiting, logging, errors
-│   ├── database/        Mongo + Redis connection services, indexes
-│   ├── models/          Domain enums
-│   ├── schemas/         Pydantic request/response models
-│   ├── repositories/    Data-access layer
-│   ├── services/        Business logic (streaks, scoring, sync, …)
-│   ├── integrations/    Coding platform adapters
-│   ├── workers/         ARQ worker + background tasks (optional)
-│   ├── templates/email/ Jinja2 HTML email templates
-│   └── middleware/      Request-id + security headers
-├── scripts/reset_db.py  Drop all collections (clean-slate reset)
-├── tests/               Pytest suite (no external services required)
-frontend/                React SPA
-├── src/api/             Axios client + typed query hooks
-├── src/components/ui/   Shared component library
-├── src/features/        auth / student / admin pages
-├── src/layouts/         Portal layouts + route guards
-└── src/routes.tsx       Router with role-based protection
-run.py                   ★ One-command launcher (monolithic mode)
+├── backend/
+│   ├── app/              FastAPI app, API, services, repositories, integrations
+│   ├── scripts/          Admin and database maintenance commands
+│   ├── tests/            Pytest suite (mock MongoDB; no Atlas needed)
+│   ├── requirements.txt
+│   └── requirements-dev.txt
+├── frontend/             React SPA (src/, public/, Vite config)
+├── docs/                 Codebase knowledge graph and project guides
+├── .env.example
+├── Dockerfile
+└── run.py                One-command API + built frontend launcher
 ```
 
 ## Quick start
@@ -73,7 +57,7 @@ cp .env.example .env
 # Backend
 python -m venv .venv
 .venv\Scripts\pip install -r backend\requirements.txt     # Windows
-# source .venv/bin/activate && pip install -r requirements.txt  # macOS/Linux
+# source .venv/bin/activate && pip install -r backend/requirements.txt  # macOS/Linux
 
 # Frontend (only needed for the first build)
 cd frontend && npm install && cd ..
@@ -85,6 +69,11 @@ cd frontend && npm install && cd ..
 cd frontend && npm run build && cd ..
 # → produces frontend/dist/
 ```
+
+On Windows PowerShell, use `npm.cmd run build` if script execution blocks
+`npm.ps1`. Stop the running monolith before rebuilding on Windows; Vite replaces
+files in `frontend/dist`, and a running server can keep them locked. Restart
+`python run.py` after a successful build.
 
 ### 4. Run everything with one command
 
@@ -106,13 +95,13 @@ python run.py --workers 4          # multi-worker (production)
 ```
 
 > **Want the dev-mode experience** (live HMR on the frontend)? Run `npm run dev`
-> in `frontend/` **and** `uvicorn app.main:app --reload --port 8000` in
-> `app/`. Vite proxies `/api` to the backend on port 8000.
+> in `frontend/` and `uvicorn app.main:app --reload --port 8000 --app-dir backend`
+> from the repository root. Vite proxies `/api` to the backend on port 8000.
 >
 > **Want durable background jobs?** Add Redis and start the ARQ worker
-> alongside the monolith:
+> alongside the monolith (from the repository root):
 > ```bash
-> arq app.workers.worker.WorkerSettings
+> PYTHONPATH=backend arq app.workers.worker.WorkerSettings
 > ```
 > The API will automatically use it for emails/sync/recalculation so jobs
 > survive process restarts. Without Redis, jobs run inline and die with
@@ -120,22 +109,28 @@ python run.py --workers 4          # multi-worker (production)
 
 ### 5. Create the first super admin
 
-The database starts empty. Register your real super admin through the app's
-first-run flow (or insert one manually). No demo/dummy data is seeded.
-
-To wipe all data and start over:
-```bash
-python -m backend.scripts.reset_db
-```
+The database starts empty; there is no web registration flow for the first
+super admin. From the `backend/` directory, run
+`python -m scripts.create_admin EMAIL PASSWORD` with real values to create
+that account. No demo data is seeded. The
+`backend/scripts/reset_db.py` maintenance command deletes all application
+collections, so it is not part of normal setup.
 
 ## Running the test suites
 
 ```bash
-# backend (mongomock — no Atlas needed)
-.venv\Scripts\python -m pytest backend\tests -q
+# backend (mongomock; no Atlas needed)
+.venv\Scripts\python.exe -m pytest -c backend\pytest.ini backend\tests -q
 
 # frontend
 cd frontend && npm run build   # strict TypeScript check + Vite build
+```
+
+With the app running, check database readiness, SPA pages, built assets, and
+anonymous API guards without changing data:
+
+```bash
+python scripts/system_smoke.py
 ```
 
 ## Documentation
@@ -146,6 +141,7 @@ cd frontend && npm run build   # strict TypeScript check + Vite build
 - [`ENVIRONMENT.md`](ENVIRONMENT.md) — every variable explained
 - [`DEPLOYMENT.md`](DEPLOYMENT.md) — production deployment without Docker
 - [`CODING_INTEGRATIONS.md`](CODING_INTEGRATIONS.md) — adapter architecture, platform APIs, limits
+- [`docs/KNOWLEDGE_GRAPH.md`](docs/KNOWLEDGE_GRAPH.md) — codebase map and machine-readable graph
 
 ## Security highlights
 

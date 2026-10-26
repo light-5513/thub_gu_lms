@@ -41,19 +41,21 @@ class LeaderboardRepository:
             {"student_id": oid(student_id), "platform": platform}
         )
 
-    async def rank_of(self, student_id: str, platform: str = "overall") -> int | None:
-        higher = await self.scores.count_documents(
-            {
-                "platform": platform,
-                "score": {"$gt": 0},
-                "student_id": {"$ne": oid(student_id)},
-            }
-        )
+    async def rank_of(
+        self,
+        student_id: str,
+        platform: str = "overall",
+        filters: dict | None = None,
+    ) -> int | None:
+        scope = {key: value for key, value in (filters or {}).items() if value}
         own = await self.scores.find_one(
-            {"student_id": oid(student_id), "platform": platform}
+            {"student_id": oid(student_id), "platform": platform, **scope}
         )
         if not own:
             return None
+        higher = await self.scores.count_documents(
+            {"platform": platform, "score": {"$gt": own.get("score", 0)}, **scope}
+        )
         return higher + 1
 
     async def count_scores(self, platform: str = "overall") -> int:

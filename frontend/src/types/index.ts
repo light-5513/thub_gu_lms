@@ -35,14 +35,59 @@ export interface Paginated<T> {
   total_pages: number;
 }
 
+export interface BatchSummary {
+  id: string;
+  batch_code: string;
+  name: string;
+  description?: string | null;
+  student_count: number;
+  created_at?: string | null;
+}
+
+export interface BatchMonitorAttendance {
+  present: number;
+  late: number;
+  absent: number;
+  leave: number;
+  unmarked: number;
+  percentage: number | null;
+}
+
+export interface BatchMonitor {
+  batch: BatchSummary;
+  period: { start_date: string; end_date: string; timezone: string };
+  students: {
+    total: number;
+    active: number;
+    inactive: number;
+    with_profiles: number;
+    active_coders: number;
+  };
+  classes: { total: number; marked: number; pending: number };
+  attendance: BatchMonitorAttendance;
+  coding: {
+    profiles: number;
+    activity_days: number;
+    platforms: { platform: string; profiles: number; active_students: number }[];
+  };
+  members: {
+    id: string;
+    name: string;
+    roll_number: string;
+    status: string;
+    attendance: BatchMonitorAttendance;
+    coding: { profiles: number; activity_days: number; last_activity_date: string | null };
+  }[];
+}
+
 export interface ClassItem {
   id: string;
   date: string;
   start_time: string;
   end_time: string;
-  course: string;
-  branch: string;
-  section: string;
+  course?: string | null;
+  branch?: string | null;
+  section?: string | null;
   subject: string;
   faculty?: string | null;
   topic?: string | null;
@@ -66,11 +111,62 @@ export interface SessionView {
 }
 
 export interface PlatformStats {
-  [metric: string]: number | undefined;
+  [metric: string]: number | string | null | undefined;
   problems_solved?: number;
   rating?: number;
   contributions?: number;
   public_repos?: number;
+}
+
+export interface CodingActivityMetadata {
+  available: boolean;
+  metric_key?: string | null;
+  metric_label?: string | null;
+  note?: string;
+  coverage_start?: string | null;
+  coverage_end?: string | null;
+  possibly_truncated?: boolean;
+  fill_gaps?: boolean;
+  records_returned?: number;
+  record_limit?: number;
+}
+
+export interface CodingActivityDay {
+  date: string;
+  metrics: Record<string, number>;
+  interval_start?: string | null;
+  interval_end?: string | null;
+  interval_start_date?: string | null;
+  interval_end_date?: string | null;
+  estimated?: boolean;
+}
+
+export interface CodingActivityPlatform {
+  platform: string;
+  connected: boolean;
+  username?: string | null;
+  profile_url?: string | null;
+  sync_status: string;
+  sync_error?: string | null;
+  last_synced_at?: string | null;
+  statistics: PlatformStats;
+  activity_metadata: CodingActivityMetadata;
+  activity_range?: {
+    complete: boolean;
+    coverage_start?: string | null;
+    coverage_end?: string | null;
+    daily_complete: boolean;
+  };
+  daily_activity: CodingActivityDay[];
+}
+
+export interface CodingActivityResponse {
+  student_id: string;
+  start_date: string;
+  end_date: string;
+  activity_timezone?: string;
+  supported_platforms: string[];
+  platforms: CodingActivityPlatform[];
 }
 
 export interface CodingProfile {
@@ -82,6 +178,7 @@ export interface CodingProfile {
   last_synced_at?: string | null;
   sync_error?: string | null;
   statistics: PlatformStats;
+  activity_metadata?: CodingActivityMetadata;
 }
 
 export interface SyncJob {
@@ -114,10 +211,23 @@ export interface LeaderboardEntry {
 
 export interface LeaderboardData {
   tab: string;
+  batch?: BatchSummary;
   entries: LeaderboardEntry[];
   total: number;
   generated_at?: string | null;
-  me?: Pick<LeaderboardEntry, "rank"> | null;
+  me?: Pick<LeaderboardEntry, "rank" | "student_id"> | null;
+  period_mode?: boolean;
+  start_date?: string;
+  end_date?: string;
+  activity_timezone?: string;
+  activity_available_from?: string | null;
+  activity_available_through?: string | null;
+  period_metric_label?: string | null;
+  period_metric_key?: string | null;
+  covered_profiles?: number;
+  excluded_profiles?: number;
+  estimated_profiles?: number;
+  quality_note?: string | null;
 }
 
 export interface HeatmapDay {

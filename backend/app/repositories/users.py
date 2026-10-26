@@ -44,6 +44,18 @@ class StudentRepository:
         except Exception:
             return None
 
+    async def find_by_ids(self, student_ids: builtins.list[str]) -> builtins.list[dict]:
+        object_ids = []
+        for student_id in student_ids:
+            try:
+                object_ids.append(oid(student_id))
+            except Exception:
+                continue
+        if not object_ids:
+            return []
+        cursor = self.col.find({"_id": {"$in": object_ids}})
+        return await cursor.to_list(length=len(object_ids))
+
     async def get_by_email(self, email: str) -> dict | None:
         return await self.col.find_one({"email": email.lower().strip()})
 
@@ -122,8 +134,14 @@ class StudentRepository:
         section: str | None = None,
         batch_id: str | None = None,
         academic_year_id: str | None = None,
+        active_only: bool = True,
     ) -> builtins.list[dict]:
-        filters: dict[str, Any] = {"status": "active"}
+        # Invitation-created and older profiles may predate the status field.
+        # Treat those like the active default exposed by StudentService.serialize,
+        # while keeping explicitly inactive or unknown statuses out of new rosters.
+        filters: dict[str, Any] = {
+            "$or": [{"status": "active"}, {"status": {"$exists": False}}]
+        } if active_only else {}
         if course: filters["course"] = course
         if branch: filters["branch"] = branch
         if section: filters["section"] = section
@@ -131,7 +149,7 @@ class StudentRepository:
         if academic_year_id: filters["academic_year_id"] = academic_year_id
         
         cursor = self.col.find(filters).sort([("roll_number", 1)])
-        return await cursor.to_list(length=1000)
+        return await cursor.to_list(length=None)
 
     async def all_active_ids(self) -> builtins.list[str]:
         cursor = self.col.find({"status": "active"}, {"_id": 1})

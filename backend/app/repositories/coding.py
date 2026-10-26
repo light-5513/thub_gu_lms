@@ -10,6 +10,7 @@ class CodingProfileRepository:
         self.db = db
         self.profiles = db.coding_profiles
         self.stats = db.coding_statistics
+        self.activity = db.coding_activity
 
     async def get_profile(self, student_id: str, platform: str) -> dict | None:
         return await self.profiles.find_one(
@@ -44,6 +45,9 @@ class CodingProfileRepository:
         await self.stats.delete_one(
             {"student_id": oid(student_id), "platform": platform}
         )
+        await self.activity.delete_many(
+            {"student_id": oid(student_id), "platform": platform}
+        )
 
     async def list_profiles(self, student_id: str) -> list[dict]:
         cursor = self.profiles.find({"student_id": oid(student_id)})
@@ -68,7 +72,13 @@ class CodingProfileRepository:
         )
 
     async def save_statistics(
-        self, student_id: str, platform: str, normalized: dict, raw: dict | None = None
+        self,
+        student_id: str,
+        platform: str,
+        normalized: dict,
+        raw: dict | None = None,
+        daily_activity: list[dict] | None = None,
+        activity_metadata: dict | None = None,
     ) -> None:
         now = datetime.now(timezone.utc)
         # Keep raw payload small (max 16KB)
@@ -86,11 +96,65 @@ class CodingProfileRepository:
                     "student_id": oid(student_id),
                     "platform": platform,
                     "statistics": normalized,
+                    "activity_metadata": activity_metadata or {},
                     "raw": raw_store,
                     "fetched_at": now,
                 }
             },
             upsert=True,
+        )
+        for row in daily_activity or []:
+            day = row.get("date")
+            metrics = row.get("metrics")
+            if not isinstance(day, str) or not isinstance(metrics, dict):
+                continue
+            await self.activity.update_one(
+                {
+                    "student_id": oid(student_id),
+                    "platform": platform,
+                    "date": day,
+                },
+                {
+                    "$set": {
+                        "metrics": metrics,
+                        "interval_start": row.get("interval_start"),
+                        "interval_end": row.get("interval_end"),
+                        "estimated": bool(row.get("estimated", False)),
+                        "updated_at": now,
+                    },
+                    "$setOnInsert": {
+                        "student_id": oid(student_id),
+                        "platform": platform,
+                        "date": day,
+                    },
+                },
+                upsert=True,
+            )
+
+    async def activity_for_student(
+        self, student_id: str, start_date: str, end_date: str
+    ) -> list[dict]:
+        return await (
+            self.activity.find(
+                {
+                    "student_id": oid(student_id),
+                    "date": {"$gte": start_date, "$lte": end_date},
+                }
+            )
+            .sort([("date", 1), ("platform", 1)])
+            .to_list(length=20000)
+        )
+
+    async def get_activity_day(
+        self, student_id: str, platform: str, day: str
+    ) -> dict | None:
+        return await self.activity.find_one(
+            {"student_id": oid(student_id), "platform": platform, "date": day}
+        )
+
+    async def clear_activity(self, student_id: str, platform: str) -> None:
+        await self.activity.delete_many(
+            {"student_id": oid(student_id), "platform": platform}
         )
 
     async def get_statistics(self, student_id: str, platform: str) -> dict | None:

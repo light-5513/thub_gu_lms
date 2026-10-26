@@ -32,6 +32,7 @@ class ClassUpdate(BaseModel):
     faculty: str | None = None
     topic: str | None = None
     session_mode: str | None = None
+    batch_id: str | None = None
 
 
 class ClassOut(ClassCreate):

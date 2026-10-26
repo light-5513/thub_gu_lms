@@ -23,9 +23,10 @@ import argparse
 import sys
 from pathlib import Path
 
-# Repo root is the current dir; `app` package lives here at the top level.
+# Keep the backend importable when launching from the repository root.
 ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
+BACKEND = ROOT / "backend"
+sys.path.insert(0, str(BACKEND))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LMS monolithic launcher")
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     try:
         import uvicorn
     except ImportError:
-        print("ERROR: uvicorn not installed. Run: pip install -r requirements.txt")
+        print("ERROR: uvicorn not installed. Run: pip install -r backend/requirements.txt")
         sys.exit(1)
 
     # Friendly banner
@@ -57,5 +58,5 @@ if __name__ == "__main__":
         port=args.port,
         reload=args.reload,
         workers=args.workers if not args.reload else 1,
-        app_dir=str(ROOT),
+        app_dir=str(BACKEND),
     )

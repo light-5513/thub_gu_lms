@@ -2,147 +2,409 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ============================================================
-   Light Neumorphism Design System
-   ============================================================ */
 :root {
+  color-scheme: light;
+
+  /* Shared soft neumorphic surface. Raised and inset elements use this same color. */
   --bg: #e0e5ec;
   --panel: #e0e5ec;
-  --text: #2d3748;
+  --panel-subtle: #e0e5ec;
+  --text: #1a202c;
   --text-muted: #718096;
-  --text-dim: #a0aec0;
-  
-  --hi: #15803d;
-  --hi-soft: #22c55e;
-  --tech-green: #15803d;
+  --text-dim: #8795a8;
+  --border: rgba(163, 177, 198, 0.42);
+  --border-strong: rgba(145, 161, 184, 0.58);
   --mid: #cbd5e0;
-  
-  /* Light Neumorphism Shadows */
-  --neo-out: 9px 9px 16px rgba(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5);
-  --neo-out-sm: 5px 5px 10px rgba(163,177,198,0.6), -5px -5px 10px rgba(255,255,255, 0.5);
-  --neo-in: inset 6px 6px 10px 0 rgba(163,177,198, 0.5), inset -6px -6px 10px 0 rgba(255,255,255, 0.5);
-  --neo-in-deep: inset 8px 8px 12px 0 rgba(163,177,198, 0.7), inset -8px -8px 12px 0 rgba(255,255,255, 0.8);
-  --neo-glow-green: inset 4px 4px 10px 0 rgba(163,177,198, 0.4), inset -4px -4px 10px 0 rgba(255,255,255, 0.6), inset 0 0 18px rgba(21,128,61, 0.25);
-  --neo-glow: inset 4px 4px 10px 0 rgba(163,177,198, 0.4), inset -4px -4px 10px 0 rgba(255,255,255, 0.6), inset 0 0 18px rgba(255,126,103, 0.25);
-  
-  --radius: 28px;
-  --radius-lg: 36px;
+
+  --hi: #15803d;
+  --hi-hover: #166534;
+  --hi-soft: rgba(21, 128, 61, 0.08);
+  --hi-border: rgba(21, 128, 61, 0.18);
+  --danger: #b42318;
+  --danger-soft: rgba(180, 35, 24, 0.08);
+  --warning: #a15c07;
+  --warning-soft: rgba(161, 92, 7, 0.09);
+  --info: #175cd3;
+  --info-soft: rgba(23, 92, 211, 0.08);
+
+  --neo-out: 9px 9px 16px rgba(163, 177, 198, 0.6), -9px -9px 16px rgba(255, 255, 255, 0.5);
+  --neo-out-sm: 5px 5px 10px rgba(163, 177, 198, 0.6), -5px -5px 10px rgba(255, 255, 255, 0.5);
+  --neo-out-lg: 12px 12px 22px rgba(163, 177, 198, 0.6), -12px -12px 22px rgba(255, 255, 255, 0.6);
+  --neo-in: inset 5px 5px 9px rgba(163, 177, 198, 0.55), inset -5px -5px 9px rgba(255, 255, 255, 0.78);
+  --neo-in-deep: inset 7px 7px 12px rgba(163, 177, 198, 0.7), inset -7px -7px 12px rgba(255, 255, 255, 0.86);
+  --neo-in-deep-sm: inset 3px 3px 6px rgba(163, 177, 198, 0.5), inset -3px -3px 6px rgba(255, 255, 255, 0.72);
+  --neo-glow-green: inset 3px 3px 8px rgba(163, 177, 198, 0.34), inset -3px -3px 8px rgba(255, 255, 255, 0.64), inset 0 0 14px rgba(21, 128, 61, 0.16);
+  --neo-glow: inset 3px 3px 8px rgba(163, 177, 198, 0.34), inset -3px -3px 8px rgba(255, 255, 255, 0.64);
+
+  --radius: 1.75rem;
+  --radius-lg: 2.25rem;
 }
 
 @layer base {
-  html { @apply antialiased; }
+  html {
+    @apply antialiased;
+    scroll-behavior: smooth;
+  }
+
   body {
-    background-color: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', 'Inter', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
-  }
-  h1, h2, h3, h4, h5, h6 {
+    background: var(--bg);
     color: var(--text);
-    letter-spacing: -0.01em;
-    font-weight: 800;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
   }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--text);
+    letter-spacing: -0.015em;
+    font-weight: 700;
+  }
+
   *:focus-visible {
-    outline: none;
-    box-shadow: 0 0 15px rgba(255,126,103, 0.4);
-    border-radius: 6px;
+    outline: 2px solid rgba(21, 128, 61, 0.46);
+    outline-offset: 3px;
   }
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
+
+  ::selection {
+    color: var(--text);
+    background: rgba(21, 128, 61, 0.15);
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--bg);
+  }
+
   ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
     background: var(--mid);
-    border-radius: 4px;
+    background-clip: padding-box;
   }
-  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #aab7c7;
+    background-clip: padding-box;
+  }
 }
 
 @layer components {
-  /* Hardware primitives */
   .card {
-    background-color: var(--bg);
     color: var(--text);
+    background: var(--panel);
+    border: 0;
     border-radius: var(--radius);
     box-shadow: var(--neo-out);
-    border: none;
-    transition: transform 240ms ease-out, box-shadow 240ms ease-out;
   }
-  .card:hover {
-    transform: translateY(-1px);
-    box-shadow: 12px 12px 20px rgba(163,177,198,0.6), -12px -12px 20px rgba(255,255,255, 0.6);
+
+  .card-content {
+    padding: 1.25rem;
   }
+
   .card-lg {
-    background-color: var(--bg);
     color: var(--text);
+    background: var(--panel);
+    border: 0;
     border-radius: var(--radius-lg);
     box-shadow: var(--neo-out);
-    border: none;
   }
+
   .card-inset {
-    background-color: var(--bg);
+    color: var(--text);
+    background: var(--panel);
+    border: 0;
     border-radius: var(--radius);
     box-shadow: var(--neo-in);
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 9999px;
+    font-weight: 650;
+    box-shadow: var(--neo-out-sm);
+    transition: color 160ms ease-out, box-shadow 160ms ease-out, transform 120ms ease-out;
   }
 
   .btn-primary {
-    background-color: var(--bg);
     color: var(--hi);
-    box-shadow: var(--neo-out-sm);
-    border-radius: 9999px;
-    transition: all 0.2s ease-in-out;
-  }
-  .btn-primary:hover, .btn-primary:active {
-    box-shadow: var(--neo-in);
+    background: var(--bg);
   }
 
-  .btn-secondary, .btn-danger {
-    background-color: var(--bg);
-    color: var(--text-muted);
-    box-shadow: var(--neo-out-sm);
-    border-radius: 9999px;
-    transition: all 0.2s ease-in-out;
+  .btn-primary:hover:not(:disabled),
+  .btn-primary:active:not(:disabled) {
+    color: var(--hi-hover);
+    box-shadow: var(--neo-glow-green);
   }
-  .btn-secondary:hover, .btn-danger:hover, .btn-secondary:active, .btn-danger:active {
+
+  .btn-secondary {
+    color: var(--text-muted);
+    background: var(--bg);
+  }
+
+  .btn-secondary:hover:not(:disabled),
+  .btn-secondary:active:not(:disabled) {
+    color: var(--text);
     box-shadow: var(--neo-in);
   }
 
   .btn-danger {
-    color: #e53e3e;
+    color: var(--danger);
+    background: var(--bg);
+  }
+
+  .btn-danger:hover:not(:disabled),
+  .btn-danger:active:not(:disabled) {
+    color: var(--danger);
+    box-shadow: inset 0 0 0 1px rgba(180, 35, 24, 0.28), var(--neo-in);
+  }
+
+  .btn-ghost {
+    border-radius: 9999px;
+    color: var(--text);
+    background: transparent;
+    transition: background-color 150ms ease-out, box-shadow 150ms ease-out;
+  }
+
+  .btn-ghost:hover:not(:disabled),
+  .btn-ghost:active:not(:disabled) {
+    background: var(--bg);
+    box-shadow: var(--neo-in);
   }
 
   .input-recess {
-    background-color: var(--bg);
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 1.25rem;
     box-shadow: var(--neo-in);
-    border: none;
-    border-radius: 24px;
+    transition: box-shadow 150ms ease-out, border-color 150ms ease-out;
   }
-  .input-recess:focus {
-    box-shadow: var(--neo-in-deep);
+
+  .input-recess::placeholder {
+    color: var(--text-dim);
+  }
+
+  .input-recess:focus,
+  .input-recess:focus-visible {
+    border-color: rgba(21, 128, 61, 0.25);
     outline: none;
+    box-shadow: var(--neo-in-deep), 0 0 0 3px rgba(21, 128, 61, 0.08);
+  }
+
+  .input-recess:disabled {
+    color: var(--text-muted);
+    opacity: 0.75;
+  }
+
+  .select-native-bridge {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .select-trigger {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  .select-trigger[data-open] {
+    border-color: var(--hi-border);
+    box-shadow: var(--neo-in), 0 0 0 3px var(--hi-soft);
+  }
+
+  .neo-select-menu {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.48);
+    border-radius: 1.25rem;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: var(--neo-out-lg);
+    scrollbar-width: thin;
+  }
+
+  .neo-select-option {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 2px 0;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    cursor: pointer;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  .neo-select-option[aria-selected="true"] {
+    color: var(--hi-hover);
+    font-weight: 600;
+    background: var(--hi-soft);
+  }
+
+  .neo-select-option[data-active] {
+    box-shadow: var(--neo-in-deep-sm);
+  }
+
+  .neo-select-option[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .sk-icon-disc {
-    background-color: var(--bg);
-    box-shadow: var(--neo-out-sm);
+    color: var(--hi);
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.28);
     border-radius: 50%;
-  }
-  .sk-pill {
-    background-color: var(--bg);
     box-shadow: var(--neo-out-sm);
+  }
+
+  .sk-pill {
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 9999px;
+    box-shadow: var(--neo-out-sm);
   }
 
   .sk-nav-active {
-    color: var(--tech-green);
+    color: var(--hi-hover);
+    background: var(--bg);
     box-shadow: var(--neo-glow-green);
-    background-color: var(--bg);
+    border-radius: 9999px;
   }
+
   .sk-nav-hover:hover {
+    color: var(--text);
+    background: var(--bg);
     box-shadow: var(--neo-in);
   }
+
+  .sk-nav-active.sk-nav-hover:hover {
+    color: var(--hi-hover);
+    box-shadow: var(--neo-glow-green);
+  }
+
   .sk-header {
-    background-color: var(--bg);
-    box-shadow: var(--neo-out-sm);
+    background: var(--bg);
+    border-bottom: 1px solid rgba(163, 177, 198, 0.28);
+    box-shadow: 0 5px 12px rgba(163, 177, 198, 0.35), 0 -3px 8px rgba(255, 255, 255, 0.52);
+  }
+
+  .page-title {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+  }
+
+  .page-description {
+    margin-top: 0.375rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .eyebrow {
+    color: var(--hi);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .neo-popover {
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    box-shadow: var(--neo-out-lg);
+  }
+
+  .neo-active {
+    color: var(--hi-hover);
+    background: var(--bg);
+    box-shadow: var(--neo-glow-green);
+  }
+
+  .neo-inset-surface {
+    background: var(--bg);
+    box-shadow: var(--neo-in);
+  }
+
+  .neo-alert {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--neo-in);
+  }
+
+  .neo-alert-danger {
+    color: var(--danger);
+    border-color: rgba(180, 35, 24, 0.24);
+  }
+
+  .neo-alert-success {
+    color: #146534;
+    border-color: rgba(22, 128, 63, 0.24);
+  }
+
+  .neo-alert-warning {
+    color: var(--warning);
+    border-color: rgba(161, 92, 7, 0.24);
+  }
+
+  .neo-alert-info {
+    color: var(--info);
+    border-color: rgba(23, 92, 211, 0.24);
+  }
+}
+
+@media (min-width: 640px) {
+  @layer components {
+    .card-content {
+      padding: 1.5rem;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

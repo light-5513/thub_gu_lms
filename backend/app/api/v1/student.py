@@ -1,14 +1,20 @@
 """Student portal APIs: dashboard, profile, attendance, streaks, coding profiles, leaderboard."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
 
 from app.core.deps import get_db, require_student
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.integrations import available_platforms
+from app.integrations.activity_time import get_activity_timezone
 from app.repositories.coding import CodingProfileRepository
 from app.services.leaderboard_service import LeaderboardService
+from app.services.batch_service import BatchService
+from app.services.coding_activity_service import (
+    CodingActivityService,
+    normalize_activity_range,
+)
 from app.services.settings_service import SettingsService
 from app.services.streak_service import compute_streaks
 
@@ -95,9 +101,9 @@ async def dashboard(user=Depends(require_student), db=Depends(get_db)):
             "platforms": platform_stats,
         },
         "scores": scores,
-        "overall_rank": await LeaderboardService(db).repo.rank_of(
-            str(student["_id"]), "overall"
-        ),
+        "overall_rank": await LeaderboardService(db).rank_of(
+            str(student["_id"]), "overall", {"batch_id": student["batch_id"]}
+        ) if student.get("batch_id") else None,
     }
 
 
@@ -261,30 +267,45 @@ async def streak(user=Depends(require_student), db=Depends(get_db)):
 @router.get("/leaderboard")
 async def leaderboard(
     tab: str = Query(default="overall"),
-    course=None,
-    branch=None,
-    section=None,
-    batch_id=None,
-    academic_year_id=None,
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     user=Depends(require_student),
     db=Depends(get_db),
 ):
-    service = LeaderboardService(db)
-    filters = {
-        "course": course,
-        "branch": branch,
-        "section": section,
-        "batch_id": batch_id,
-        "academic_year_id": academic_year_id,
-    }
-    result = await service.get_leaderboard(tab, filters)
     student = await _require_student_doc(db, user)
+    batch_id = student.get("batch_id")
+    if not batch_id:
+        raise AppError("You are not assigned to a batch yet", 409)
+    batch = await BatchService(db).get_batch(batch_id)
+    batch_meta = {
+        "id": batch["id"],
+        "batch_code": batch.get("batch_code"),
+        "name": batch.get("name"),
+        "student_count": batch["student_count"],
+    }
+    service = LeaderboardService(db)
+    filters = {"batch_id": batch_id}
     sid = str(student["_id"])
+    if start_date or end_date:
+        timezone_name = get_activity_timezone(
+            await SettingsService(db).get("timezone", "Asia/Kolkata")
+        ).key
+        start, end = normalize_activity_range(start_date, end_date, timezone_name)
+        result = await service.get_date_leaderboard(
+            tab,
+            start,
+            end,
+            filters,
+            current_student_id=sid,
+            activity_timezone=timezone_name,
+        )
+        return {**result, "batch": batch_meta}
+    result = await service.get_leaderboard(tab, filters)
     me = next((e for e in result["entries"] if e["student_id"] == sid), None)
     if me is None:
-        rank = await service.repo.rank_of(sid, tab.lower())
-        me = {"rank": rank} if rank else None
-    return {**result, "me": me}
+        rank = await service.rank_of(sid, tab, filters)
+        me = {"student_id": sid, "rank": rank} if rank else None
+    return {**result, "me": me, "batch": batch_meta}
 
 
 # ------------------------------------------------------------------ coding profiles
@@ -307,8 +328,26 @@ async def coding_profiles(user=Depends(require_student), db=Depends(get_db)):
             else None,
             "sync_error": p.get("sync_error"),
             "statistics": (stats or {}).get("statistics", {}),
+            "activity_metadata": (stats or {}).get("activity_metadata", {}),
         }
     return {"profiles": out, "supported_platforms": available_platforms()}
+
+
+@router.get("/coding-activity")
+async def coding_activity(
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    user=Depends(require_student),
+    db=Depends(get_db),
+):
+    student = await _require_student_doc(db, user)
+    timezone_name = get_activity_timezone(
+        await SettingsService(db).get("timezone", "Asia/Kolkata")
+    ).key
+    start, end = normalize_activity_range(start_date, end_date, timezone_name)
+    return await CodingActivityService(db).for_student(
+        str(student["_id"]), start, end, timezone_name
+    )
 
 
 @router.post("/coding-profiles")

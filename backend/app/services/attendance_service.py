@@ -63,6 +63,7 @@ class ClassService:
         return doc
 
     async def create(self, data: dict, actor: dict, ip=None) -> dict:
+        await self._validate_batch(data.get("batch_id"))
         doc = {
             **self._normalize_class_doc(data),
             "created_by": str(actor["_id"]),
@@ -90,6 +91,29 @@ class ClassService:
         existing = await self.get(class_id)
         clean = {k: v for k, v in fields.items() if v is not None}
         if clean:
+            if "batch_id" in clean and clean["batch_id"] != existing.get("batch_id"):
+                await self._validate_batch(clean["batch_id"])
+                session = await self.attendance.get_session_by_class(class_id)
+                if session:
+                    if existing.get("batch_id"):
+                        raise ConflictError(
+                            "The batch cannot be changed after attendance has been saved"
+                        )
+                    records = await self.attendance.get_records_for_session(
+                        str(session["_id"])
+                    )
+                    recorded_ids = {record.get("student_id") for record in records}
+                    matching_count = await self.db.students.count_documents(
+                        {
+                            "_id": {"$in": list(recorded_ids)},
+                            "batch_id": clean["batch_id"],
+                        }
+                    )
+                    if matching_count != len(recorded_ids):
+                        raise ConflictError(
+                            "Saved attendance includes students outside this batch. "
+                            "Review their batch assignments or choose the matching batch."
+                        )
             clean = self._normalize_class_doc(clean)
             await self.classes.update(class_id, clean)
         await self.audit.log(
@@ -106,6 +130,12 @@ class ClassService:
             ip_address=ip,
         )
         return await self.classes.get(class_id)
+
+    async def _validate_batch(self, batch_id: str | None) -> None:
+        if not batch_id:
+            raise AppError("Select a batch for this class")
+        if not await self.db.batches.find_one({"_id": oid_safe(batch_id)}):
+            raise NotFoundError("Batch not found")
 
     async def delete(self, class_id: str, actor: dict, ip=None) -> None:
         await self.get(class_id)
@@ -151,13 +181,15 @@ class AttendanceService:
         self.students = StudentRepository(db)
         self.audit = AuditService(db)
 
-    async def load_roster(self, class_doc: dict) -> list[dict]:
+    async def load_roster(
+        self, class_doc: dict, include_inactive: bool = False
+    ) -> list[dict]:
+        batch_id = class_doc.get("batch_id")
+        if not batch_id:
+            return []
         students = await self.students.find_by_group(
-            class_doc["course"],
-            class_doc["branch"],
-            class_doc["section"],
-            class_doc.get("batch_id"),
-            class_doc.get("academic_year_id"),
+            batch_id=batch_id,
+            active_only=not include_inactive,
         )
         return [
             {
@@ -179,6 +211,20 @@ class AttendanceService:
         for r in records:
             by_student[str(r["student_id"])] = r["status"]
         roster = await self.load_roster(cls)
+        if not cls.get("batch_id"):
+            # Older classes have no batch mapping. Their saved records remain
+            # visible for review, but no new attendance can be saved for them.
+            recorded_students = await self.students.find_by_ids(list(by_student))
+            roster = [
+                {
+                    "student_id": str(student["_id"]),
+                    "roll_number": student.get("roll_number", ""),
+                    "name": f"{student.get('first_name', '')} {student.get('last_name', '')}".strip(),
+                    "status": "present",
+                }
+                for student in recorded_students
+            ]
+        roster.sort(key=lambda entry: (entry["roll_number"], entry["student_id"]))
         entries = []
         for entry in roster:
             status = by_student.get(entry["student_id"])
@@ -207,15 +253,26 @@ class AttendanceService:
                 "Attendance has already been saved for this class. Use edit to change it."
             )
 
+        if not cls.get("batch_id"):
+            raise AppError("Assign this class to a batch before taking attendance")
+        roster = await self.load_roster(cls)
+        roster_ids = {entry["student_id"] for entry in roster}
+        if not roster_ids:
+            raise AppError("No active students are assigned to this batch")
+
         valid_statuses = {s.value for s in AttendanceStatus}
         student_ids = set()
         for r in records:
             if r["status"] not in valid_statuses:
                 raise ConflictError(f"Invalid attendance status '{r['status']}'")
-            try:
-                student_ids.add(r["student_id"])
-            except Exception:
-                raise NotFoundError("Unknown student in attendance records")
+            student_id = str(oid_safe(r["student_id"]))
+            if student_id in student_ids:
+                raise AppError("Each student can appear only once in attendance")
+            if student_id not in roster_ids:
+                raise AppError("Attendance includes a student outside this batch")
+            student_ids.add(student_id)
+        if student_ids != roster_ids:
+            raise AppError("Mark attendance for every active student in this batch")
 
         session = existing_session or await self.attendance.create_session(
             class_id, str(actor["_id"])
@@ -245,8 +302,7 @@ class AttendanceService:
         self, class_id: str, student_id: str, new_status: str, actor: dict, ip=None
     ) -> None:
         """Edit a single student's status; every change is audited."""
-        from app.repositories.base import oid
-
+        student_id = str(oid_safe(student_id))
         cls = await self._get_class(class_id)
         session = await self.attendance.get_session_by_class(class_id)
         if not session:
@@ -254,8 +310,16 @@ class AttendanceService:
         if new_status not in {s.value for s in AttendanceStatus}:
             raise ConflictError(f"Invalid status '{new_status}'")
         record = await self.attendance.records.find_one(
-            {"class_session_id": session["_id"], "student_id": oid(student_id)}
+            {"class_session_id": session["_id"], "student_id": ObjectId(student_id)}
         )
+        if cls.get("batch_id"):
+            roster_ids = {
+                entry["student_id"] for entry in await self.load_roster(cls)
+            }
+            if student_id not in roster_ids:
+                raise AppError("This student is not assigned to the class batch")
+        elif not record:
+            raise AppError("Assign this class to a batch before adding attendance")
         old_status = record["status"] if record else "unmarked"
         await self.attendance.save_records(
             str(session["_id"]),

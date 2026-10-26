@@ -1,6 +1,6 @@
 """Create the first super admin user.
 
-Run:  python -m scripts.create_admin <email> <password>
+Run from the backend directory:  python -m scripts.create_admin <email> <password>
 """
 
 import asyncio

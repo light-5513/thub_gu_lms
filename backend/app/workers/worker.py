@@ -10,20 +10,22 @@ from app.database.redis import set_worker_heartbeat
 
 async def startup(ctx):
     setup_logging()
-    await mongo.connect_to_mongo()
-    ctx["db"] = mongo.get_db() if mongo.get_client() else None
+    if not await mongo.connect_to_mongo():
+        raise RuntimeError("MongoDB unavailable for background worker")
+    ctx["db"] = mongo.get_db()
     import uuid
 
     ctx["worker_id"] = f"worker-{uuid.uuid4().hex[:8]}"
+    await heartbeat(ctx)
 
 
 async def shutdown(ctx):
     if mongo.get_client():
-        mongo.close_mongo()
+        await mongo.close_mongo()
 
 
 async def heartbeat(ctx):
-    await set_worker_heartbeat(ctx.get("worker_id", "worker"))
+    await set_worker_heartbeat(ctx.get("worker_id", "worker"), redis=ctx.get("redis"))
 
 
 # ------------------------------------------------------------------ tasks

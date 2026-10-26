@@ -1,12 +1,21 @@
 """Admin analytics, reports, settings and audit logs."""
 
 import io
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from bson import ObjectId
 
 from app.core.deps import get_db, require_staff
+from app.core.errors import NotFoundError
+from app.integrations.activity_time import get_activity_timezone
 from app.services.analytics_service import AnalyticsService
+from app.services.coding_activity_service import (
+    CodingActivityService,
+    normalize_activity_range,
+)
+from app.services.settings_service import SettingsService
 
 router = APIRouter(prefix="/admin", tags=["admin-analytics"])
 
@@ -47,6 +56,28 @@ async def student_analytics(
     and leaderboard rank. Used by the admin student report page."""
     service = AnalyticsService(db)
     return await service.student_report(student_id, days)
+
+
+@router.get("/analytics/student/{student_id}/coding-activity")
+async def student_coding_activity(
+    student_id: str,
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
+    user=Depends(require_staff),
+    db=Depends(get_db),
+):
+    if not ObjectId.is_valid(student_id):
+        raise NotFoundError("Student not found")
+    student = await db.students.find_one({"_id": ObjectId(student_id)}, {"_id": 1})
+    if not student:
+        raise NotFoundError("Student not found")
+    timezone_name = get_activity_timezone(
+        await SettingsService(db).get("timezone", "Asia/Kolkata")
+    ).key
+    start, end = normalize_activity_range(start_date, end_date, timezone_name)
+    return await CodingActivityService(db).for_student(
+        student_id, start, end, timezone_name
+    )
 
 
 @router.get("/reports/student/{student_id}")

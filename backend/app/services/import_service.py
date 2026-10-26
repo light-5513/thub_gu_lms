@@ -1,6 +1,6 @@
 """Bulk student import from Excel (.xlsx) with preview/validate/confirm flow."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import Any
 
@@ -183,12 +183,11 @@ class ImportService:
         }
 
     async def _store_pending(self, valid_rows: list[dict]) -> str:
+        now = datetime.now(timezone.utc)
         doc = {
             "rows": valid_rows,
-            "created_at": datetime.now(timezone.utc),
-            "expires_at": datetime.fromtimestamp(
-                datetime.now(timezone.utc).timestamp() + 900, tz=timezone.utc
-            ),
+            "created_at": now,
+            "expires_at": now + timedelta(minutes=15),
         }
         result = await self.db.import_previews.insert_one(doc)
         return str(result.inserted_id)
@@ -203,6 +202,15 @@ class ImportService:
         except Exception:
             raise NotFoundError("Import session not found or expired")
         if not pending:
+            raise NotFoundError("Import session not found or expired")
+        expires_at = pending.get("expires_at")
+        if not isinstance(expires_at, datetime):
+            await self.db.import_previews.delete_one({"_id": pending["_id"]})
+            raise NotFoundError("Import session not found or expired")
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            await self.db.import_previews.delete_one({"_id": pending["_id"]})
             raise NotFoundError("Import session not found or expired")
         created = 0
         skipped = 0

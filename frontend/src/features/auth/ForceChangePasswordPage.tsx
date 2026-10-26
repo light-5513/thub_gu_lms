@@ -38,7 +38,7 @@ export function ForceChangePasswordPage() {
 
   return (
     <AuthLayout title="Set your new password" subtitle="For security, you must replace your temporary password before continuing.">
-      <div className="mb-5 flex items-center gap-2 rounded-[20px] bg-neutral-100 px-3 py-2.5 text-xs text-black ring-1 ring-amber-100">
+      <div className="neo-alert neo-alert-warning mb-5 flex items-center gap-2 px-3 py-2.5 text-sm">
         <ShieldCheck size={15} />
         You're using a temporary password.
       </div>
@@ -49,7 +49,7 @@ export function ForceChangePasswordPage() {
         <FormField label="Confirm new password" error={errors.confirm?.message}>
           <Input type="password" autoComplete="new-password" {...register("confirm")} />
         </FormField>
-        {error && <div className="rounded-[20px] bg-neutral-100 px-3 py-2 text-xs text-black">{error}</div>}
+        {error && <div className="neo-alert neo-alert-danger px-3 py-2 text-sm" role="alert">{error}</div>}
         <Button type="submit" className="w-full" loading={forceChange.isPending}>
           Save password and continue
         </Button>

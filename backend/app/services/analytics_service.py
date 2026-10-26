@@ -549,9 +549,13 @@ class AnalyticsService:
                     "last_synced": p.get("last_synced_at"),
                     "fetched_at": fetched,
                     "rating": st.get("rating"),
-                    "problems_solved": int(st.get("problems_solved") or 0),
+                    "problems_solved": int(st["problems_solved"])
+                    if st.get("problems_solved") is not None
+                    else None,
                     "contests": st.get("contests"),
                     "stars": st.get("stars"),
+                    "statistics": st,
+                    "activity_metadata": (stats or {}).get("activity_metadata") or {},
                 }
             )
         # Sort: successfully synced first, then by problems_solved desc

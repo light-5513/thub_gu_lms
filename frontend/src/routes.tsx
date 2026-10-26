@@ -10,6 +10,7 @@ import { ContactPage } from "@/features/public/ContactPage";
 import { StudentDashboardPage } from "@/features/student/DashboardPage";
 import { LeaderboardPage } from "@/features/student/LeaderboardPage";
 import { ProfilePage } from "@/features/student/ProfilePage";
+import { CodingStatsPage } from "@/features/student/CodingStatsPage";
 import { AdminDashboardPage } from "@/features/admin/DashboardPage";
 import { StudentsPage } from "@/features/admin/StudentsPage";
 import { StudentReportPage } from "@/features/admin/StudentReportPage";
@@ -23,6 +24,7 @@ import { ReportsPage } from "@/features/admin/ReportsPage";
 import { SettingsPage } from "@/features/admin/SettingsPage";
 import { AuditLogsPage } from "@/features/admin/AuditLogsPage";
 import { BatchesPage } from "@/features/admin/BatchesPage";
+import { BatchMonitorPage } from "@/features/admin/BatchMonitorPage";
 import { SandboxPage } from "@/features/admin/SandboxPage";
 
 const STAFF = ["SUPER_ADMIN", "ADMIN", "TEACHER"] as const;
@@ -51,6 +53,7 @@ export const router = createBrowserRouter([
           { path: "/student", element: <Navigate to="/student/dashboard" replace /> },
           { path: "/student/dashboard", element: <StudentDashboardPage /> },
           { path: "/student/leaderboard", element: <LeaderboardPage /> },
+          { path: "/student/coding", element: <CodingStatsPage /> },
           { path: "/student/profile", element: <ProfilePage /> },
         ],
       },
@@ -75,6 +78,7 @@ export const router = createBrowserRouter([
           { path: "/admin/analytics", element: <AnalyticsPage /> },
           { path: "/admin/reports", element: <ReportsPage /> },
           { path: "/admin/batches", element: <BatchesPage /> },
+          { path: "/admin/batches/:batchId/monitor", element: <BatchMonitorPage /> },
           { path: "/admin/settings", element: <SettingsPage /> },
           { path: "/admin/sandbox", element: <SandboxPage /> },
           { path: "/admin/audit-logs", element: <AuditLogsPage /> },

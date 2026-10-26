@@ -10,13 +10,15 @@ import {
   YAxis,
 } from "recharts";
 import { useAttendanceRecords, useHeatmap, useStudentDashboard } from "@/api/hooks";
-import { Card, CardHeader, ProgressBar, StatCard, StatCardSkeleton, Skeleton, EmptyState, Row } from "@/components/ui/display";
+import { Card, CardHeader, ProgressBar, StatCard, StatCardSkeleton, Skeleton, EmptyState, ErrorState, Row } from "@/components/ui/display";
 import { Heatmap } from "@/components/ui/heatmap";
 import { Badge } from "@/components/ui/display";
 import { format, subDays } from "date-fns";
 
+const TOOLTIP_STYLE = { fontSize: 12, borderRadius: 12, backgroundColor: "var(--panel)", border: "1px solid var(--border)", color: "var(--text)", boxShadow: "var(--neo-out-sm)" };
+
 export function StudentDashboardPage() {
-  const { data, isLoading, isError } = useStudentDashboard();
+  const { data, isLoading, isError, refetch } = useStudentDashboard();
   const year = new Date().getFullYear();
   const heatmap = useHeatmap(year);
   const attendanceRecords = useAttendanceRecords();
@@ -35,40 +37,30 @@ export function StudentDashboardPage() {
     );
   }
 
-  if (isError || !data) return <EmptyState title="We couldn't load your dashboard." description="Please try again shortly." />;
+  if (isError || !data) return <ErrorState message="Please check your connection and try again." onRetry={() => refetch()} />;
 
   const { student, attendance, streaks, coding, scores, overall_rank } = data;
   const attPct = attendance.percentage ?? 0;
 
   // Last 14 days activity for the mini chart
-  const chartData = Array.from({ length: 14 }).map((_, i) => {
+  const chartData = Array.from({ length: 14 }).flatMap((_, i) => {
     const day = format(subDays(new Date(), 13 - i), "yyyy-MM-dd");
     const entry = heatmap.data?.days.find((d) => d.date === day);
-    return { date: format(new Date(day + "T00:00:00"), "dd MMM"), pct: entry ? (entry.breakdown.present ?? 0) / Math.max(entry.classes, 1) * 100 : 0 };
+    return entry ? [{ date: format(new Date(day + "T00:00:00"), "dd MMM"), pct: (entry.breakdown.present ?? 0) / Math.max(entry.classes, 1) * 100 }] : [];
   });
 
   const recentRecords = (attendanceRecords.data?.records ?? []).slice(0, 8);
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Welcome card */}
-      <div className="card overflow-hidden p-0">
-        <div
-          className="px-6 py-6"
-          style={{
-            background: "linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%)",
-            borderBottom: "1px solid rgba(255, 255, 255, 0.30)",
-          }}
-        >
-
-          <h1 className="mt-2 text-lg font-extrabold" style={{ color: "var(--text)" }}>
-            Welcome back, {student.first_name}!
-          </h1>
-          <p className="mt-1 text-sm" style={{ color: "var(--text)" }}>
-            {student.course} · {student.branch} · Section {student.section}
-          </p>
-        </div>
-      </div>
+      <header>
+        <h1 className="page-title">
+          Welcome back, {student.first_name}!
+        </h1>
+        <p className="page-description">
+          {student.course} · {student.branch} · Section {student.section}
+        </p>
+      </header>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -91,7 +83,7 @@ export function StudentDashboardPage() {
           value={scores.overall_score.toFixed(1)}
           icon={<TrendingUp size={20} />}
           tone="info"
-          hint={overall_rank ? `Rank #${overall_rank}` : "Unranked"}
+          hint={overall_rank ? `Batch rank #${overall_rank}` : "No batch rank yet"}
         />
       </div>
 
@@ -102,17 +94,17 @@ export function StudentDashboardPage() {
           <p className="mb-1 text-3xl font-bold text-leather-300">{attPct}%</p>
           <ProgressBar value={attPct} />
           <dl className="mt-4 space-y-2 text-xs text-leather-200">
-            <Row label="Present" value={attendance.present} dot="bg-neutral-100" />
-            <Row label="Late" value={attendance.late} dot="bg-neutral-100" />
-            <Row label="Absent" value={attendance.absent} dot="bg-neutral-100" />
-            <Row label="Leave" value={attendance.leave} dot="bg-neutral-100" />
+            <Row label="Present" value={attendance.present} dot="bg-success-500" />
+            <Row label="Late" value={attendance.late} dot="bg-warning-500" />
+            <Row label="Absent" value={attendance.absent} dot="bg-danger-500" />
+            <Row label="Leave" value={attendance.leave} dot="bg-slate-500" />
             <Row label="Total classes" value={attendance.total_classes} dot="bg-slate-300" />
           </dl>
         </Card>
 
         {/* Coding performance */}
         <Card>
-          <CardHeader title="Coding performance" action={<Link to="/student/profile" className="text-xs font-medium text-primary-600 hover:underline">Manage profiles</Link>} />
+          <CardHeader title="Coding performance" action={<div className="flex gap-3"><Link to="/student/coding" className="text-xs font-semibold text-primary-700 hover:underline">View stats</Link><Link to="/student/profile" className="text-xs font-medium text-primary-600 hover:underline">Manage profiles</Link></div>} />
           {coding.platforms.length === 0 ? (
             <EmptyState title="No coding profiles connected yet." description="Add LeetCode, GitHub and more to start tracking." />
           ) : (
@@ -136,7 +128,7 @@ export function StudentDashboardPage() {
           ) : (
             <ul className="space-y-2">
               {recentRecords.map((r, i) => (
-                <li key={i} className="flex items-center justify-between rounded-[20px] bg-cream-100 px-3 py-2 text-xs">
+                <li key={i} className="neo-inset-surface flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 text-xs">
                   <div className="min-w-0">
                     <p className="truncate font-medium text-leather-200">{r.subject || "Class"}</p>
                     <p className="text-[11px] text-leather-50/80">{format(new Date(r.date), "dd MMM yyyy")}</p>
@@ -161,15 +153,19 @@ export function StudentDashboardPage() {
       <Card>
         <CardHeader title="Daily class attendance" subtitle="Last 14 days" />
         <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#a3a3a3" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={2} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} unit="%" />
-              <ChartTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              <Bar dataKey="pct" name="Present %" fill="var(--text)" radius={[4, 4, 0, 0]} maxBarSize={22} />
-            </BarChart>
-          </ResponsiveContainer>
+          {heatmap.isLoading ? <Skeleton className="h-full w-full" /> : chartData.length === 0 ? (
+            <EmptyState title="No scheduled classes in this period." />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} interval={2} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "var(--text-muted)" }} tickLine={false} axisLine={false} unit="%" />
+                <ChartTooltip contentStyle={TOOLTIP_STYLE} />
+                <Bar dataKey="pct" name="Present %" fill="#15803d" radius={[4, 4, 0, 0]} maxBarSize={22} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </Card>
     </div>

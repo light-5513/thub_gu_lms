@@ -86,6 +86,9 @@ export const uploadBatchStudents = (batchId: string, file: File) => {
 export const getBatchStudents = (batchId: string, page = 1, pageSize = 50) =>
   api.get(`/admin/batches/${batchId}/students`, { params: { page, page_size: pageSize } }).then((r) => r.data);
 
+export const removeBatchStudent = (batchId: string, studentId: string) =>
+  api.delete(`/admin/batches/${batchId}/students/${studentId}`).then((r) => r.data);
+
 export function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;

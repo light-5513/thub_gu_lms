@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, getBatches, createBatch, updateBatch, deleteBatch, assignBatchStudents, uploadBatchStudents, getBatchStudents } from "./client";
+import { api, getBatches, createBatch, updateBatch, deleteBatch, assignBatchStudents, uploadBatchStudents, getBatchStudents, removeBatchStudent } from "./client";
 import type {
   AdminDashboard,
   AppSettings,
   AttendanceEntry,
   AuditLog,
+  BatchMonitor,
+  BatchSummary,
   ClassItem,
+  CodingActivityResponse,
   CodingProfile,
   HeatmapDay,
   LeaderboardData,
@@ -156,15 +159,44 @@ export const useAttendanceRecords = (year?: number) =>
   useGet<{ records: { date: string; status: string; subject?: string | null; topic?: string | null }[] }>(qk.attendance(year), `/student/attendance${year ? `?year=${year}` : ""}`);
 export const useHeatmap = (year: number) => useGet<{ year: number; days: HeatmapDay[] }>(qk.heatmap(year), `/student/heatmap?year=${year}`);
 export const useStreak = () => useGet<{ current_streak: number; longest_streak: number; total_present_sessions: number; total_sessions: number; attendance_percentage: number | null }>(qk.streak, "/student/streak");
-export const useLeaderboard = (scope: "student" | "admin", tab: string) =>
-  useGet<LeaderboardData>(qk.leaderboard(scope, tab), scope === "admin" ? `/admin/leaderboards?tab=${tab}` : `/student/leaderboard?tab=${tab}`);
-export const useStudentLeaderboard = (tab: string) =>
-  useQuery({
-    queryKey: qk.leaderboard("student", tab),
-    queryFn: async () => (await api.get<LeaderboardData>(`/student/leaderboard?tab=${tab}`)).data,
-  });
+export const useLeaderboard = (
+  scope: "student" | "admin",
+  tab: string,
+  filters: { course?: string; branch?: string; section?: string; batch_id?: string } = {},
+  startDate?: string,
+  endDate?: string,
+) => {
+  const params = new URLSearchParams({ tab });
+  Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+  if (startDate && endDate) {
+    params.set("start_date", startDate);
+    params.set("end_date", endDate);
+  }
+  const query = params.toString();
+  return useGet<LeaderboardData>(
+    qk.leaderboard(scope, query),
+    `${scope === "admin" ? "/admin/leaderboards" : "/student/leaderboard"}?${query}`,
+    scope === "student" || Boolean(filters.batch_id),
+  );
+};
+
+export const useStudentLeaderboard = (tab: string, startDate?: string, endDate?: string) =>
+  useLeaderboard("student", tab, {}, startDate, endDate);
 
 export const useCodingProfiles = () => useGet<{ profiles: Record<string, CodingProfile>; supported_platforms: string[] }>(qk.codingProfiles, "/student/coding-profiles");
+
+export const useCodingActivity = (startDate: string, endDate: string, studentId?: string) =>
+  useQuery({
+    queryKey: ["coding-activity", studentId ?? "me", startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+      const path = studentId
+        ? `/admin/analytics/student/${studentId}/coding-activity?${params}`
+        : `/student/coding-activity?${params}`;
+      return (await api.get<CodingActivityResponse>(path)).data;
+    },
+    enabled: !!startDate && !!endDate && (!studentId || !!studentId),
+  });
 
 export function useSaveCodingProfile() {
   const qc = useQueryClient();
@@ -222,7 +254,11 @@ export function useCreateStudent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Partial<Student>) => (await api.post("/admin/students", payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "students"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
   });
 }
 
@@ -234,6 +270,8 @@ export function useUpdateStudent() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["admin", "students"] });
       qc.invalidateQueries({ queryKey: ["admin", "student", vars.id] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 }
@@ -242,7 +280,11 @@ export function useDeleteStudent() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => api.delete(`/admin/students/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "students"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
   });
 }
 
@@ -261,18 +303,22 @@ export function useResetAccount() {
 export interface ClassListParams extends Record<string, unknown> {
   page?: number;
   page_size?: number;
+  batch_id?: string;
   course?: string;
   branch?: string;
   section?: string;
 }
 
-export const useClasses = (params: ClassListParams) => {
+export const useClasses = (params: ClassListParams, enabled = true) => {
   const sp = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
   });
-  return useGet<Paginated<ClassItem>>(qk.classes(sp), `/admin/classes?${sp.toString()}`);
+  return useGet<Paginated<ClassItem>>(qk.classes(sp), `/admin/classes?${sp.toString()}`, enabled);
 };
+
+export const useClassDetail = (classId: string) =>
+  useGet<ClassItem>(["admin", "class", classId], `/admin/classes/${classId}`, !!classId);
 
 export function useCreateClass() {
   const qc = useQueryClient();
@@ -303,18 +349,26 @@ export function useUpdateClass() {
   return useMutation({
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
       (await api.put(`/admin/classes/${id}`, payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "classes"] }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin", "classes"] });
+      qc.invalidateQueries({ queryKey: ["admin", "class", vars.id] });
+    },
   });
 }
 
-export const useClassSession = (classId: string) => useGet<SessionView>(qk.session(classId), `/admin/classes/${classId}/attendance`, !!classId);
+export const useClassSession = (classId: string, enabled = true) =>
+  useGet<SessionView>(qk.session(classId), `/admin/classes/${classId}/attendance`, !!classId && enabled);
 
 export function useSaveAttendance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ classId, records }: { classId: string; records: Pick<AttendanceEntry, "student_id" | "status">[] }) =>
       (await api.post(`/admin/classes/${classId}/attendance`, { records, override: true })).data,
-    onSuccess: (_d, vars) => qc.invalidateQueries({ queryKey: qk.session(vars.classId) }),
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: qk.session(vars.classId) });
+      qc.invalidateQueries({ queryKey: ["admin", "classes"] });
+      qc.invalidateQueries({ queryKey: ["admin", "class", vars.classId] });
+    },
   });
 }
 
@@ -333,14 +387,14 @@ export function useImportPreview() {
     mutationFn: async (file: File) => {
       const form = new FormData();
       form.append("file", file);
-      return (await api.post<ImportPreviewData>("/admin/invitations/bulk/preview", form, { headers: { "Content-Type": "multipart/form-data" } })).data;
+      return (await api.post<ImportPreviewData>("/admin/imports/preview", form)).data;
     },
   });
 }
 
 export function useImportConfirm() {
   return useMutation({
-    mutationFn: async (import_token: string) => (await api.post("/admin/invitations/bulk/confirm", { import_token })).data,
+    mutationFn: async (import_token: string) => (await api.post("/admin/imports/confirm", { import_token })).data,
   });
 }
 
@@ -461,7 +515,17 @@ export interface StudentReportCodingProfile {
   username?: string;
   profile_url?: string;
   rating?: number | null;
-  problems_solved: number;
+  problems_solved?: number | null;
+  statistics?: Record<string, number | string | null>;
+  activity_metadata?: {
+    available?: boolean;
+    metric_key?: string | null;
+    metric_label?: string | null;
+    note?: string;
+    coverage_start?: string | null;
+    coverage_end?: string | null;
+    possibly_truncated?: boolean;
+  };
   sync_status?: string;
   last_synced?: string | null;
   fetched_at?: string | null;
@@ -515,10 +579,17 @@ export const useAuditLogs = (page = 1) =>
 
 // Batches
 export const useBatches = (page = 1, pageSize = 50) =>
-  useQuery({
+  useQuery<Paginated<BatchSummary>>({
     queryKey: ["batches", page, pageSize],
     queryFn: () => getBatches(page, pageSize),
   });
+
+export const useBatchMonitor = (batchId: string, startDate: string, endDate: string) =>
+  useGet<BatchMonitor>(
+    ["batch-monitor", batchId, startDate, endDate],
+    `/admin/batches/${batchId}/monitor?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`,
+    Boolean(batchId && startDate && endDate),
+  );
 
 export const useCreateBatch = () => {
   const qc = useQueryClient();
@@ -541,7 +612,10 @@ export const useDeleteBatch = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => deleteBatch(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["batches"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
   });
 };
 
@@ -550,9 +624,12 @@ export const useAssignBatchStudents = () => {
   return useMutation({
     mutationFn: ({ batchId, rollNumbers }: { batchId: string; rollNumbers: string[] }) =>
       assignBatchStudents(batchId, rollNumbers),
-    onSuccess: (_, { batchId }) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["batches"] });
-      qc.invalidateQueries({ queryKey: ["batch-students", batchId] });
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 };
@@ -561,9 +638,27 @@ export const useUploadBatchStudents = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ batchId, file }: { batchId: string; file: File }) => uploadBatchStudents(batchId, file),
-    onSuccess: (_, { batchId }) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["batches"] });
-      qc.invalidateQueries({ queryKey: ["batch-students", batchId] });
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
+  });
+};
+
+export const useRemoveBatchStudent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ batchId, studentId }: { batchId: string; studentId: string }) =>
+      removeBatchStudent(batchId, studentId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["batches"] });
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
     },
   });
 };

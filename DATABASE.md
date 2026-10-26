@@ -2,7 +2,7 @@
 
 Connection string comes from `MONGODB_URI`; the database name from `MONGODB_DATABASE` (default `lms`). Connections are opened at startup, verified with `ping`, closed at shutdown, and exposed via health endpoints **without credentials**.
 
-All indexes are created automatically by `app/database/mongo.py::ensure_indexes` on startup.
+All indexes are created automatically by `backend/app/database/mongo.py::ensure_indexes` on startup.
 
 ## Collections & access patterns
 
@@ -35,6 +35,7 @@ Uniqueness of `(student_id, class_session_id)` is enforced with a bulk-upsert ke
 |---|---|---|
 | `coding_profiles` | username + sync status per platform per student | `(student_id, platform)` unique-ish upsert key, `platform`, `username` |
 | `coding_statistics` | normalized stats + bounded raw payload | `(student_id, platform)` |
+| `coding_activity` | per-platform daily metric rows, with source coverage kept in the latest stats snapshot | unique `(student_id, platform, date)` |
 | `coding_sync_jobs` | job header: totals/status/error_summary | status, platform, created_at |
 | `coding_sync_logs` | per-student per-job outcomes | job_id |
 

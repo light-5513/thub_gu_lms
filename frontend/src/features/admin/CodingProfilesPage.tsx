@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Github, PlayCircle, RefreshCcw } from "lucide-react";
 import { useSyncJob, useSyncJobs, useTriggerSync } from "@/api/hooks";
-import { Badge, Card, CardHeader, EmptyState, ProgressBar, Skeleton, TableSkeleton } from "@/components/ui/display";
+import { Badge, Card, CardHeader, EmptyState, ErrorState, ProgressBar, Skeleton, TableSkeleton } from "@/components/ui/display";
 import { Button } from "@/components/ui/forms";
 import { Table } from "@/components/ui/navigation";
 import { useToast } from "@/components/ui/overlays";
@@ -30,8 +30,8 @@ export function CodingProfilesAdminPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h1 className="text-lg font-bold text-leather-300">Coding synchronization</h1>
-        <p className="text-xs text-leather-50/80">Fetch fresh statistics from each platform for every connected student. Jobs run in the background.</p>
+        <h1 className="page-title">Coding synchronization</h1>
+        <p className="page-description">Fetch fresh statistics from each platform for every connected student. Jobs run in the background.</p>
       </div>
 
       {/* Trigger buttons */}
@@ -51,7 +51,11 @@ export function CodingProfilesAdminPage() {
 
       {/* Active job progress */}
       {activeJobId && (
-        <Card className="animate-fade-in ring-1 ring-black">
+        <Card className="animate-fade-in border-primary-200">
+          {activeJob.isError ? (
+            <ErrorState message={errorMessage(activeJob.error)} onRetry={() => { void activeJob.refetch(); }} />
+          ) : (
+          <>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex-1">
               <div className="mb-2 flex items-center gap-2">
@@ -81,6 +85,8 @@ export function CodingProfilesAdminPage() {
               </ul>
             </details>
           )}
+          </>
+          )}
         </Card>
       )}
 
@@ -91,13 +97,19 @@ export function CodingProfilesAdminPage() {
         </div>
         {jobs.isLoading ? (
           <TableSkeleton rows={5} cols={6} />
+        ) : jobs.isError ? (
+          <ErrorState message={errorMessage(jobs.error)} onRetry={() => { void jobs.refetch(); }} />
         ) : !jobs.data || jobs.data.length === 0 ? (
           <EmptyState title="No sync jobs yet." description="Trigger your first synchronization above." />
         ) : (
           <Table headers={["Platform", "Status", "Progress", "Success", "Failed", "Started"]}>
             {jobs.data.map((job) => (
-              <tr key={job.job_id} className="cursor-pointer hover:bg-cream-100/70" onClick={() => setActiveJobId(job.job_id)}>
-                <td className="px-4 py-2.5 text-xs font-medium capitalize text-leather-200">{LABELS[job.platform] ?? job.platform}</td>
+              <tr key={job.job_id} className="hover:bg-primary-200/80">
+                <td className="px-4 py-2.5 text-xs font-medium capitalize text-leather-200">
+                  <button type="button" onClick={() => setActiveJobId(job.job_id)} className="rounded-lg text-left underline-offset-2 hover:text-primary-700 hover:underline">
+                    {LABELS[job.platform] ?? job.platform}
+                  </button>
+                </td>
                 <td className="px-4 py-2.5">
                   <Badge tone={job.status === "completed" ? "green" : job.status === "partial" ? "amber" : job.status === "failed" ? "red" : "blue"}>{job.status}</Badge>
                 </td>

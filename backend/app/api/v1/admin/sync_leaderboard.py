@@ -1,11 +1,16 @@
 """Admin coding sync triggers + job monitoring, and leaderboard management."""
 
 from fastapi import APIRouter, Depends, Query, Request
+from datetime import date
 
 from app.core.deps import get_db, require_admin, require_staff
 from app.core.errors import AppError
+from app.integrations.activity_time import get_activity_timezone
 from app.services.coding_sync_service import CodingSyncService
+from app.services.batch_service import BatchService
 from app.services.leaderboard_service import LeaderboardService
+from app.services.coding_activity_service import normalize_activity_range
+from app.services.settings_service import SettingsService
 
 router = APIRouter(prefix="/admin", tags=["admin-sync"])
 
@@ -82,14 +87,23 @@ async def recalc_leaderboard(
 @router.get("/leaderboards")
 async def leaderboards(
     tab: str = Query(default="overall"),
+    start_date: date | None = Query(default=None),
+    end_date: date | None = Query(default=None),
     course: str | None = None,
     branch: str | None = None,
     section: str | None = None,
-    batch_id: str | None = None,
+    batch_id: str = Query(..., description="Batch whose students are ranked"),
     academic_year_id: str | None = None,
     user=Depends(require_staff),
     db=Depends(get_db),
 ):
+    batch = await BatchService(db).get_batch(batch_id)
+    batch_meta = {
+        "id": batch["id"],
+        "batch_code": batch.get("batch_code"),
+        "name": batch.get("name"),
+        "student_count": batch["student_count"],
+    }
     service = LeaderboardService(db)
     filters = {
         "course": course,
@@ -98,4 +112,14 @@ async def leaderboards(
         "batch_id": batch_id,
         "academic_year_id": academic_year_id,
     }
-    return await service.get_leaderboard(tab, filters)
+    if start_date or end_date:
+        timezone_name = get_activity_timezone(
+            await SettingsService(db).get("timezone", "Asia/Kolkata")
+        ).key
+        start, end = normalize_activity_range(start_date, end_date, timezone_name)
+        result = await service.get_date_leaderboard(
+            tab, start, end, filters, activity_timezone=timezone_name
+        )
+    else:
+        result = await service.get_leaderboard(tab, filters)
+    return {**result, "batch": batch_meta}

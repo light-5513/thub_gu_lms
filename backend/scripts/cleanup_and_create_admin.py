@@ -63,7 +63,7 @@ async def main() -> None:
             "ERROR: ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set.\n"
             "       Example:\n"
             "         ADMIN_EMAIL=you@yourdomain.com ADMIN_PASSWORD='YourSecureP@ssw0rd' \\\n"
-            "         python -m backend.scripts.cleanup_and_create_admin"
+            "         cd backend && python -m scripts.cleanup_and_create_admin"
         )
         return
 

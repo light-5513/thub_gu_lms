@@ -37,6 +37,11 @@ def test_platform_scores():
     empty = platform_coding_score("leetcode", {})
     assert empty == 0.0
 
+    geeksforgeeks = platform_coding_score(
+        "geeksforgeeks", {"problems_solved": 250, "score": 224}
+    )
+    assert geeksforgeeks == 50.0
+
 
 def test_compute_coding_score_averages_platforms():
     stats = [

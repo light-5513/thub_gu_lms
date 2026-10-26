@@ -17,6 +17,7 @@ def get_redis() -> Redis | None:
 
 async def connect_to_redis() -> bool:
     global _redis
+    client = None
     try:
         client = Redis.from_url(
             settings.REDIS_URL, socket_timeout=2, socket_connect_timeout=2
@@ -27,6 +28,8 @@ async def connect_to_redis() -> bool:
         return True
     except Exception as exc:
         logger.warning("Redis unavailable (background jobs degraded): %s", exc)
+        if client is not None:
+            await client.aclose()
         _redis = None
         return False
 
@@ -34,7 +37,7 @@ async def connect_to_redis() -> bool:
 async def close_redis() -> None:
     global _redis
     if _redis is not None:
-        await _redis.close()
+        await _redis.aclose()
     _redis = None
 
 
@@ -55,7 +58,7 @@ async def enqueue_job(task_name: str, *args, **kwargs) -> bool:
     inline so that core flows (e.g. invitation emails in dev) still work.
     """
     redis = get_redis()
-    if redis is None:
+    if redis is None or not await worker_healthy():
         return False
     try:
         from arq.connections import ArqRedis
@@ -70,14 +73,14 @@ async def enqueue_job(task_name: str, *args, **kwargs) -> bool:
         return False
 
 
-async def set_worker_heartbeat(worker_id: str) -> None:
-    redis = get_redis()
-    if redis is None:
+async def set_worker_heartbeat(worker_id: str, redis=None) -> None:
+    client = redis if redis is not None else get_redis()
+    if client is None:
         return
     import time
 
-    await redis.set("worker:heartbeat", str(time.time()), ex=60)  # type: ignore
-    await redis.sadd("workers", worker_id)  # type: ignore
+    await client.set("worker:heartbeat", str(time.time()), ex=60)
+    await client.sadd("workers", worker_id)
 
 
 async def worker_healthy() -> bool:

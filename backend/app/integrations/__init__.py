@@ -35,6 +35,7 @@ def get_adapter(
         timeout=int(cfg.get("timeout_seconds", 15)),
         max_retries=int(cfg.get("max_retries", 3)),
         retry_delay=float(cfg.get("retry_delay_seconds", 2)),
+        activity_timezone=str(cfg.get("activity_timezone", "Asia/Kolkata")),
     )
 
 

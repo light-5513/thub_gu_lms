@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from app.core.errors import NotFoundError
 from app.integrations import get_adapter
+from app.integrations.activity_time import get_activity_timezone, today_in_timezone
 from app.models.enums import AuditAction, JobStatus
 from app.repositories.coding import CodingProfileRepository, SyncJobRepository
 from app.repositories.users import StudentRepository
@@ -83,6 +84,10 @@ class CodingSyncService:
         )
         settings_svc = SettingsService(self.db)
         cfg = await settings_svc.sync_settings()
+        activity_timezone = get_activity_timezone(
+            await settings_svc.get("timezone", "Asia/Kolkata")
+        ).key
+        cfg["activity_timezone"] = activity_timezone
 
         platforms = (
             ["leetcode", "codechef", "codeforces", "atcoder", "github", "geeksforgeeks"]
@@ -112,9 +117,100 @@ class CodingSyncService:
                     message = None
                     try:
                         stats = await adapter.get_stats(username)
+                        daily_activity = stats.pop("_daily_activity", [])
+                        activity_metadata = stats.pop("_activity_metadata", {})
+                        previous_snapshot = await self.profiles.get_statistics(
+                            student_id, plat
+                        )
+                        previous_metadata = (previous_snapshot or {}).get(
+                            "activity_metadata"
+                        ) or {}
+                        activity_history_rebuilt = bool(
+                            previous_snapshot
+                            and previous_metadata.get("activity_timezone")
+                            != activity_timezone
+                        )
+                        if (
+                            activity_history_rebuilt
+                        ):
+                            # Older rows were bucketed in UTC. Drop them so a
+                            # resync rebuilds the timeline in the configured
+                            # institutional timezone instead of mixing dates.
+                            await self.profiles.clear_activity(student_id, plat)
+                            previous_metadata = {}
+                        snapshot_metric = activity_metadata.pop("snapshot_delta_key", None)
+                        if snapshot_metric:
+                            previous_stats = (previous_snapshot or {}).get("statistics") or {}
+                            previous_value = (
+                                None
+                                if activity_history_rebuilt
+                                else previous_stats.get(snapshot_metric)
+                            )
+                            current_value = stats.get(snapshot_metric)
+                            today = today_in_timezone(activity_timezone).isoformat()
+                            if previous_value is not None and current_value is not None:
+                                sync_time = datetime.now(timezone.utc)
+                                previous_day = await self.profiles.get_activity_day(
+                                    student_id, plat, today
+                                )
+                                already_detected = int(
+                                    ((previous_day or {}).get("metrics") or {}).get(
+                                        "problems_solved_delta", 0
+                                    )
+                                    or 0
+                                )
+                                interval_start = (previous_day or {}).get("interval_start")
+                                if not interval_start:
+                                    previous_fetched_at = (previous_snapshot or {}).get(
+                                        "fetched_at"
+                                    )
+                                    if isinstance(previous_fetched_at, datetime):
+                                        if previous_fetched_at.tzinfo is None:
+                                            previous_fetched_at = previous_fetched_at.replace(
+                                                tzinfo=timezone.utc
+                                            )
+                                        interval_start = previous_fetched_at.isoformat()
+                                delta = max(0, int(current_value) - int(previous_value))
+                                activity_metadata.update(
+                                    {
+                                        "available": True,
+                                        "metric_key": "problems_solved_delta",
+                                        "metric_label": "New problems detected between syncs",
+                                        "fill_gaps": False,
+                                        "note": (
+                                            "This is the increase in the platform's solved total since the previous sync, recorded on today's sync date. "
+                                            "Exact solve dates are not available; sync daily for a daily estimate."
+                                        ),
+                                        "coverage_start": previous_metadata.get(
+                                            "coverage_start"
+                                        ) or today,
+                                        "coverage_end": today,
+                                    }
+                                )
+                                daily_activity = [
+                                    {
+                                        "date": today,
+                                        "metrics": {
+                                            "problems_solved_delta": already_detected + delta
+                                        },
+                                        "interval_start": interval_start,
+                                        "interval_end": sync_time.isoformat(),
+                                        "estimated": True,
+                                    }
+                                ]
+                            else:
+                                activity_metadata["note"] = (
+                                    f"{activity_metadata.get('note', '')} The first sync establishes a baseline; the next sync can begin tracking changes."
+                                ).strip()
                         await self.profiles.upsert_profile(student_id, plat, username)
+                        activity_metadata["activity_timezone"] = activity_timezone
                         await self.profiles.save_statistics(
-                            student_id, plat, stats, {"stats": stats}
+                            student_id,
+                            plat,
+                            stats,
+                            {"stats": stats},
+                            daily_activity=daily_activity,
+                            activity_metadata=activity_metadata,
                         )
                         await self.profiles.mark_sync_status(
                             student_id, plat, "success"
@@ -137,6 +233,14 @@ class CodingSyncService:
                             pass
                     try:
                         await self.jobs.add_log(job_id, student_id, plat, ok, message)
+                    except Exception:
+                        pass
+                    try:
+                        await self.jobs.increment_job(
+                            job_id,
+                            success=1 if ok else 0,
+                            failed=0 if ok else 1,
+                        )
                     except Exception:
                         pass
                     await asyncio.sleep(delay_ms)

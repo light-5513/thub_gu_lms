@@ -4,7 +4,7 @@ services:
     plan: free
     name: lms
     rootDir: .
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ready
     autoDeploy: true
     envVars:
       - key: APP_ENV

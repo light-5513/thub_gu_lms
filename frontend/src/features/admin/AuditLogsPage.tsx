@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { ScrollText } from "lucide-react";
 import { useAuditLogs } from "@/api/hooks";
-import { Badge, Card, EmptyState, TableSkeleton } from "@/components/ui/display";
+import { Badge, Card, EmptyState, ErrorState, TableSkeleton } from "@/components/ui/display";
 import { Pagination, Table } from "@/components/ui/navigation";
+import { errorMessage } from "@/api/client";
 import type { AuditLog } from "@/types";
 
 const ACTION_TONES: Record<string, string> = {
@@ -32,18 +33,20 @@ const ACTION_TONES: Record<string, string> = {
 
 export function AuditLogsPage() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useAuditLogs(page);
+  const { data, isLoading, isError, error, refetch } = useAuditLogs(page);
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div>
-        <h1 className="text-lg font-bold text-leather-300">Audit logs</h1>
-        <p className="text-xs text-leather-50/80">Every important administrative action is traceable — who did what, when, and from where.</p>
+        <h1 className="page-title">Audit logs</h1>
+        <p className="page-description">Every important administrative action is traceable — who did what, when, and from where.</p>
       </div>
 
       <Card className="p-0">
         {isLoading ? (
           <TableSkeleton rows={10} cols={5} />
+        ) : isError ? (
+          <ErrorState message={errorMessage(error)} onRetry={() => { void refetch(); }} />
         ) : !data || data.items.length === 0 ? (
           <EmptyState icon={<ScrollText size={20} />} title="No audit entries yet." description="Actions like logins, invitations and attendance edits will appear here." />
         ) : (

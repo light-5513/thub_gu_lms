@@ -65,7 +65,7 @@ export function AcceptInvitationPage() {
   if (info.isError || !info.data) {
     return (
       <AuthLayout title="Invitation unavailable">
-        <div className="rounded-[20px] bg-neutral-100 px-4 py-3 text-xs leading-relaxed text-black ring-1 ring-black">
+        <div className="neo-alert neo-alert-danger px-4 py-3 text-sm leading-relaxed" role="alert">
           This invitation link is invalid, was already used, or has expired. Please ask your administrator for a fresh invitation.
         </div>
       </AuthLayout>
@@ -76,7 +76,7 @@ export function AcceptInvitationPage() {
     return (
       <AuthLayout title="Welcome aboard! 🎉">
         <div className="space-y-4 text-center">
-          <div className="rounded-[20px] bg-neutral-100 px-4 py-3 text-xs leading-relaxed text-black ring-1 ring-primary-200">
+          <div className="neo-alert neo-alert-success px-4 py-3 text-sm leading-relaxed" role="status">
             Your account has been created for <strong>{info.data.email}</strong>.
           </div>
           <Button
@@ -124,7 +124,7 @@ export function AcceptInvitationPage() {
       title="Complete your registration"
       subtitle={`Invited: ${info.data.email} — fill in your details and choose a password.`}
     >
-      <div className="mb-4 rounded-[20px] bg-cream-100 px-3 py-2 text-xs ring-1 ring-transparent">
+      <div className="neo-alert neo-alert-info mb-4 break-words px-3 py-2 text-sm">
         Email: <strong>{info.data.email}</strong> <span className="text-leather-50/80">(read-only)</span>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -144,6 +144,7 @@ export function AcceptInvitationPage() {
             </FormField>
             <FormField label="Course" error={errors.course}>
               <Select
+                aria-label="Course"
                 value={form.course}
                 onChange={set("course")}
               >
@@ -152,6 +153,7 @@ export function AcceptInvitationPage() {
             </FormField>
             <FormField label="Branch" error={errors.branch}>
               <Select
+                aria-label="Branch"
                 value={form.branch}
                 onChange={set("branch")}
               >
@@ -160,6 +162,7 @@ export function AcceptInvitationPage() {
             </FormField>
             <FormField label="Section" error={errors.section}>
               <Select
+                aria-label="Section"
                 value={form.section}
                 onChange={set("section")}
               >
@@ -176,7 +179,7 @@ export function AcceptInvitationPage() {
         </FormField>
       </div>
       {errors.root && (
-        <div className="mt-3 rounded-[20px] bg-neutral-100 px-3 py-2 text-xs text-black">{errors.root}</div>
+        <div className="neo-alert neo-alert-danger mt-3 px-3 py-2 text-sm" role="alert">{errors.root}</div>
       )}
       <Button className="mt-5 w-full" size="lg" loading={accept.isPending} onClick={submit}>
         Create my account

@@ -36,8 +36,9 @@ Base URL: `http://localhost:8000/api` (dev). Interactive Swagger docs at `/api/d
 | GET | `/student/attendance?year=` | Full attendance history with class subject/topic |
 | GET | `/student/heatmap?year=` | Per-day status for the year; days without class are absent from the payload |
 | GET | `/student/streak` | Current/longest streak, totals, percentage |
-| GET | `/student/leaderboard?tab=&course=&branch=…` | Ranked entries + `me` rank highlight |
+| GET | `/student/leaderboard?tab=&course=&branch=&start_date=&end_date=` | Date ranges rank by unique active days or a platform primary metric; omit dates for the lifetime snapshot |
 | GET | `/student/coding-profiles` | Connected platforms with stats & sync state |
+| GET | `/student/coding-activity?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Per-platform statistics and date-filtered daily activity in the institution timezone (defaults to the last 30 days; max 730 days) |
 | POST | `/student/coding-profiles` | `{platform, username}` connect/update |
 | DELETE | `/student/coding-profiles/{platform}` | Disconnect |
 
@@ -63,10 +64,11 @@ Admin-only actions above may be restricted to ADMIN/SUPER_ADMIN by swapping `req
 | Method | Path | Description |
 |---|---|---|
 | POST | `/admin/invitations` | Invite one student (same as create) |
-| POST | `/admin/invitations/bulk/preview` | Upload `.xlsx` (≤10 MB) → per-row validation report + import token |
-| POST | `/admin/invitations/bulk/confirm` | Import validated rows; emails queued |
+| POST | `/admin/invitations/bulk` | Send email invitations to a list of addresses |
+| POST | `/admin/imports/preview` | Upload `.xlsx` (≤10 MB) → row validation report + 15-minute import token |
+| POST | `/admin/imports/confirm` | Create students from a valid, unexpired preview token |
 
-Preview response contains `total_records`, `valid_records`, `invalid_records`, `duplicate_records` and row-level errors like `Row 17: Invalid Email`. One bad row never aborts the import.
+Import preview returns `total_records`, `valid_records`, `invalid_records`, `duplicate_records` and row-level errors. Invalid rows are excluded; valid rows are created when the preview is confirmed.
 
 ### Classes & attendance
 | Method | Path | Description |
@@ -89,7 +91,7 @@ Every attendance edit writes an audit entry (before → after).
 ### Leaderboards
 | Method | Path | Description |
 |---|---|---|
-| GET | `/admin/leaderboards?tab=overall\|leetcode\|…&course=&branch=&section=` | Snapshot-backed rankings |
+| GET | `/admin/leaderboards?tab=activity\|<platform>&course=&branch=&section=&start_date=&end_date=` | Date-based rankings; omit dates with `tab=overall` for the lifetime snapshot |
 | POST | `/admin/leaderboards/recalculate` | Recompute all scores (ADMIN) |
 
 ### Analytics & reports
@@ -97,6 +99,7 @@ Every attendance edit writes an audit entry (before → after).
 |---|---|---|
 | GET | `/admin/analytics?days=7..365` | Trends, breakdowns by course/branch/section, distribution, attendance-vs-coding scatter data, perfect/low attendance lists, platform distribution |
 | GET | `/admin/analytics/student/{id}?days=` | Per-student trend |
+| GET | `/admin/analytics/student/{id}/coding-activity?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Staff view of one student's platform statistics and daily activity in the institution timezone |
 | GET | `/admin/reports?type=students\|attendance\|leaderboard\|coding&format=csv\|xlsx\|pdf` | File download |
 
 ### Settings & audit

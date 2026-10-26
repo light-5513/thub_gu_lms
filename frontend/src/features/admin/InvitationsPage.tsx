@@ -7,7 +7,7 @@ import {
   useRevokeInvitation,
   type BulkInviteResult,
 } from "@/api/hooks";
-import { Badge, Card, CardHeader, EmptyState, Skeleton } from "@/components/ui/display";
+import { Badge, Card, CardHeader, EmptyState, ErrorState, Skeleton } from "@/components/ui/display";
 import { Button, FormField, Input, Textarea } from "@/components/ui/forms";
 import { ConfirmDialog, useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
@@ -84,14 +84,14 @@ export function InvitationsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-5 animate-fade-in">
       <div>
-        <h1 className="text-lg font-bold text-leather-300">Invitations</h1>
-        <p className="text-xs leading-relaxed text-leather-50/80">
+        <h1 className="page-title">Invitations</h1>
+        <p className="page-description max-w-3xl">
           Invite students by email — one at a time or paste a whole list. Each student receives a secure link to complete their own profile and choose their password.
         </p>
       </div>
 
       {/* Mode switch */}
-      <div className="flex gap-1 rounded-[20px] bg-cream-300/60 p-1">
+      <div className="neo-inset-surface flex gap-1 rounded-full p-1">
         {(
           [
             { key: "single", label: "Single email", icon: UserPlus },
@@ -102,7 +102,7 @@ export function InvitationsPage() {
             key={key}
             onClick={() => setMode(key)}
             className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-medium transition ${
-              mode === key ? "bg-transparent text-leather-300 shadow-card-pill" : "text-leather-50/80 hover:text-leather-200"
+              mode === key ? "neo-active rounded-full" : "rounded-full text-[var(--text-muted)] hover:bg-[var(--bg)] hover:shadow-card-recess hover:text-[var(--text)]"
             }`}
           >
             <Icon size={14} /> {label}
@@ -153,7 +153,7 @@ export function InvitationsPage() {
           />
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-leather-50/80">
             <span>{uniqueValid.length} valid</span>
-            {invalidCount > 0 && <span className="text-black">{invalidCount} invalid will be ignored</span>}
+            {invalidCount > 0 && <span className="font-medium text-warning-700">{invalidCount} invalid will be ignored</span>}
             {parsed.length !== uniqueValid.length && <span>duplicates removed automatically</span>}
           </div>
           <Button className="mt-4 w-full sm:w-auto" loading={bulk.isPending} disabled={uniqueValid.length === 0} onClick={submitBulk}>
@@ -163,7 +163,7 @@ export function InvitationsPage() {
           {bulk.isPending && <Skeleton className="mt-4 h-16 w-full" />}
 
           {bulkResults && (
-            <div className="mt-4 max-h-64 space-y-1 overflow-y-auto rounded-[20px] bg-cream-100 p-3 ring-1 ring-transparent animate-fade-in">
+            <div className="neo-inset-surface mt-4 max-h-64 space-y-1 overflow-y-auto rounded-2xl p-4 animate-fade-in">
               {bulkResults.map((r) => (
                 <div key={r.email} className="flex items-center justify-between gap-2 text-xs">
                   <span className="min-w-0 truncate text-leather-200">{r.email}</span>
@@ -172,7 +172,7 @@ export function InvitationsPage() {
                       <CheckCircle2 size={11} /> sent
                     </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-black">
+                    <span className="inline-flex items-center gap-1 text-danger-700">
                       <XCircle size={12} /> {r.message}
                     </span>
                   )}
@@ -190,10 +190,12 @@ export function InvitationsPage() {
         </div>
         {pending.isLoading ? (
           <Skeleton className="m-4 h-20" />
+        ) : pending.isError ? (
+          <ErrorState message={errorMessage(pending.error)} onRetry={() => { void pending.refetch(); }} />
         ) : !pending.data || pending.data.length === 0 ? (
           <EmptyState title="No pending invitations." description="Sent invitations appear here until they're accepted." />
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-[var(--border)]">
             {pending.data.map((inv) => (
               <li key={inv.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">
@@ -207,7 +209,7 @@ export function InvitationsPage() {
                   <Badge tone="amber">pending</Badge>
                   <button
                     onClick={() => setRevokeTarget(inv.id)}
-                    className="rounded-2xl p-1.5 text-leather-50/80 hover:bg-neutral-100 hover:text-black"
+                    className="rounded-full p-2 text-[var(--text-muted)] hover:shadow-card-recess hover:text-danger-700"
                     title="Revoke invitation"
                   >
                     <Trash2 size={14} />

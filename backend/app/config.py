@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     CODECHEF_API_URL: str = "https://www.codechef.com/users/"
     CODEFORCES_API_URL: str = "https://codeforces.com/api"
     ATCODER_API_URL: str = "https://kenkoooo.com/atcoder/atcoder-api/v3"
+    GEEKSFORGEEKS_API_URL: str = "https://authapi.geeksforgeeks.org"
 
     @property
     def is_dev(self) -> bool:

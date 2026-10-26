@@ -1,6 +1,7 @@
 """Main FastAPI application."""
 
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -15,6 +16,8 @@ from app.core.logging import setup_logging
 from app.database import mongo
 from app.database.redis import close_redis, connect_to_redis
 
+logger = logging.getLogger(__name__)
+
 
 def _resolve_frontend_dist() -> Path | None:
     """Locate the built frontend. Honour FRONTEND_DIST_DIR if set, else look
@@ -22,8 +25,8 @@ def _resolve_frontend_dist() -> Path | None:
     if settings.FRONTEND_DIST_DIR:
         p = Path(settings.FRONTEND_DIST_DIR).expanduser().resolve()
         return p if p.is_dir() else None
-    # app/main.py -> app -> repo_root -> frontend/dist
-    candidate = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+    # backend/app/main.py -> backend -> repo_root -> frontend/dist
+    candidate = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     return candidate if candidate.is_dir() else None
 
 
@@ -37,25 +40,17 @@ async def lifespan(app: FastAPI):
     try:
         redis_ok = await connect_to_redis()
         if redis_ok:
-            from urllib.parse import urlparse
-
             from arq.connections import RedisSettings, create_pool
 
-            parsed = urlparse(settings.REDIS_URL)
-            pool = await create_pool(
-                RedisSettings(
-                    host=parsed.hostname or "localhost",
-                    port=parsed.port or 6379,
-                    database=int((parsed.path or "/0").lstrip("/") or 0),
-                )
-            )
+            pool = await create_pool(RedisSettings.from_dsn(settings.REDIS_URL))
             # Replace plain client with ArqRedis pool so enqueue works.
             import app.database.redis as redis_module
 
-            await redis_module._redis.close() if redis_module.get_redis() else None
+            if redis_module.get_redis() is not None:
+                await redis_module.get_redis().aclose()
             redis_module._redis = pool
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("ARQ pool unavailable; background jobs will run inline: %s", exc)
     app.state.db_ready = db_ok
     app.state.db = mongo.get_db() if db_ok else None
     yield
@@ -103,6 +98,7 @@ app.include_router(api_router, prefix="/api")
 # When frontend/dist exists, mount it so a single uvicorn process serves
 # both the API and the SPA. SPA client-side routes are served index.html.
 _FRONTEND_DIST = _resolve_frontend_dist()
+app.state.frontend_dist = _FRONTEND_DIST
 if _FRONTEND_DIST is not None:
     app.mount(
         "/assets",

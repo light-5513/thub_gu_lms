@@ -8,8 +8,8 @@ Copy `.env.example` → `.env` and fill in values. `.env` is git-ignored and mus
 |---|---|---|
 | `APP_NAME` | `LMS` | Product name used in emails/UI |
 | `APP_ENV` | `development` | `development` enables Swagger + non-secure cookies; anything else hardens them |
-| `APP_URL` | `http://localhost:3000` | Public frontend URL (used in email links) |
-| `API_URL` | `http://localhost:8000` | Public API URL |
+| `APP_URL` | `http://localhost:8000` | Public frontend URL (used in email links); use port 3000 only with the Vite development server |
+| `API_URL` | `http://localhost:8000` | Public API origin |
 
 ## MongoDB Atlas
 

@@ -158,8 +158,8 @@ async def get_attendance(
 ):
     service = AttendanceService(db)
     session_view = await service.get_session_view(class_id)
-    roster = await service.load_roster(await ClassService(db).get(class_id))
     if not session_view:
+        roster = await service.load_roster(await ClassService(db).get(class_id))
         # Pre-fill roster with unmarked statuses
         return {
             "class_session_id": None,

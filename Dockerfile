@@ -1,8 +1,8 @@
 FROM python:3.11-slim as backend-builder
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
 FROM node:20-slim as frontend-builder
 WORKDIR /app/frontend
@@ -19,7 +19,7 @@ COPY --from=backend-builder /usr/local/lib/python3.11/site-packages/ /usr/local/
 COPY --from=backend-builder /usr/local/bin/ /usr/local/bin/
 
 # Copy application code
-COPY app/ app/
+COPY backend/ backend/
 COPY run.py .
 
 # Copy built frontend

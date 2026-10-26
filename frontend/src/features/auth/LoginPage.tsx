@@ -49,19 +49,19 @@ export function LoginPage() {
         </FormField>
         <div className="relative">
           <FormField label="Password" error={errors.password?.message}>
-            <Input type={showPassword ? "text" : "password"} placeholder="••••••••" autoComplete="current-password" {...register("password")} />
+            <Input className="pr-12" type={showPassword ? "text" : "password"} placeholder="••••••••" autoComplete="current-password" {...register("password")} />
           </FormField>
           <button
             type="button"
             onClick={() => setShowPassword((s) => !s)}
-            className="absolute right-3 top-[30px] text-leather-50/80 hover:text-leather-200"
+            className="btn-ghost absolute right-2 top-[25px] rounded-full p-2 text-leather-50 hover:text-leather-200"
             aria-label={showPassword ? "Hide password" : "Show password"}
           >
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
         {errors.root && (
-          <div className="rounded-[20px] bg-neutral-100 px-3 py-2 text-xs text-black ring-1 ring-black">{errors.root.message}</div>
+          <div className="neo-alert neo-alert-danger px-4 py-3 text-sm" role="alert">{errors.root.message}</div>
         )}
         <Button type="submit" className="w-full" size="lg" loading={login.isPending}>
           Log in

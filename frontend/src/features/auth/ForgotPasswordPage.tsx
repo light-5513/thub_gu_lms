@@ -40,10 +40,10 @@ export function ForgotPasswordPage() {
     >
       {sent ? (
         <div className="space-y-4 text-center">
-          <div className="rounded-[20px] bg-neutral-100 px-4 py-3 text-xs leading-relaxed text-black ring-1 ring-primary-200">
+          <div className="neo-alert neo-alert-info px-4 py-3 text-sm leading-relaxed" role="status">
             If an account exists for this email, a password reset link has been sent.
           </div>
-          <div className="flex justify-center gap-3">
+          <div className="flex flex-wrap items-center justify-center gap-3">
             <Button variant="outline" onClick={() => navigate("/login")}>
               Back to login
             </Button>

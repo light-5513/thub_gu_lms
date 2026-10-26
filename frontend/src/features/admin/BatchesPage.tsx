@@ -1,25 +1,28 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
-import { Layers, Plus, Trash2, Users, Upload, CheckCircle2, Eye, CalendarCheck } from "lucide-react";
+import { BarChart3, Layers, Plus, Trash2, Users, Upload, CheckCircle2, Eye, CalendarCheck, UserMinus } from "lucide-react";
 import {
   useBatches,
   useCreateBatch,
   useDeleteBatch,
   useBatchStudents,
+  useRemoveBatchStudent,
   useAssignBatchStudents,
   useUploadBatchStudents,
   useUpdateBatch,
+  useClasses,
 } from "@/api/hooks";
-import { Badge, Card, CardHeader, EmptyState, TableSkeleton, Skeleton } from "@/components/ui/display";
+import { Badge, Card, CardHeader, EmptyState, ErrorState, TableSkeleton, Skeleton } from "@/components/ui/display";
 import { Button, FormField, Input, Textarea } from "@/components/ui/forms";
 import { ConfirmDialog, Modal, useToast } from "@/components/ui/overlays";
-import { Pagination, Table } from "@/components/ui/navigation";
+import { Pagination, Table, Tabs } from "@/components/ui/navigation";
 import { errorMessage } from "@/api/client";
 
 export function BatchesPage() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useBatches(page);
+  const navigate = useNavigate();
+  const { data, isLoading, isError, error, refetch } = useBatches(page);
   
   const [createOpen, setCreateOpen] = useState(false);
   const [manageBatch, setManageBatch] = useState<any | null>(null);
@@ -28,18 +31,24 @@ export function BatchesPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-bold text-leather-300">Batches</h1>
-          <p className="text-sm text-leather-50/80">Organize students into groups for tracking</p>
+          <h1 className="page-title">Batches</h1>
+          <p className="page-description">Add students, assign them to batches, then monitor each batch here.</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} className="w-full sm:w-auto">
-          <Plus size={16} className="mr-2" />
-          Create Batch
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => navigate("/admin/students")}>
+            <Users size={16} className="mr-2" /> Add students
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus size={16} className="mr-2" /> Create batch
+          </Button>
+        </div>
       </div>
 
       <Card className="p-0">
         {isLoading ? (
           <TableSkeleton rows={5} cols={4} />
+        ) : isError ? (
+          <ErrorState message={errorMessage(error)} onRetry={() => { void refetch(); }} />
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             icon={<Layers size={24} />}
@@ -70,9 +79,14 @@ export function BatchesPage() {
                       {b.created_at ? format(new Date(b.created_at), "MMM d, yyyy") : "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
-                      <Button size="sm" variant="secondary" onClick={() => setManageBatch(b)}>
-                        Manage
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => navigate(`/admin/batches/${encodeURIComponent(b.id)}/monitor`)}>
+                          <BarChart3 size={14} className="mr-1" /> Monitor
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setManageBatch(b)}>
+                          Manage
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -121,7 +135,7 @@ function CreateBatchModal({ open, onClose }: { open: boolean; onClose: () => voi
 
   return (
     <Modal open={open} onClose={onClose} title="Create New Batch">
-      <form onSubmit={handleSubmit} className="space-y-4 p-5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <FormField label="Batch ID (Code) *">
           <Input
             placeholder="e.g. 2026-CSE"
@@ -161,55 +175,53 @@ function CreateBatchModal({ open, onClose }: { open: boolean; onClose: () => voi
 }
 
 function ManageBatchModal({ batch, onClose }: { batch: any; onClose: () => void }) {
-  const [tab, setTab] = useState<"students" | "add" | "upload" | "edit">("students");
+  const [tab, setTab] = useState<"students" | "attendance" | "add" | "upload" | "edit">("students");
   const del = useDeleteBatch();
   const toast = useToast();
   const [showDel, setShowDel] = useState(false);
   const navigate = useNavigate();
+  const { data: members } = useBatchStudents(batch.id, 1);
 
   return (
     <>
       <Modal open={true} onClose={onClose} title={`Manage Batch: ${batch.name}`} wide>
-        <div className="flex items-center gap-4 border-b border-leather-50/10 px-5 py-3 text-sm font-semibold text-leather-200 overflow-x-auto">
-          <button
-            className={`whitespace-nowrap pb-3 ${tab === "students" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
-            onClick={() => setTab("students")}
-          >
-            Students ({batch.student_count})
-          </button>
-          <button
-            className={`whitespace-nowrap pb-3 ${tab === "add" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
-            onClick={() => setTab("add")}
-          >
-            Add Manually
-          </button>
-          <button
-            className={`whitespace-nowrap pb-3 ${tab === "upload" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
-            onClick={() => setTab("upload")}
-          >
-            Upload Excel
-          </button>
-          <button
-            className={`whitespace-nowrap pb-3 ${tab === "edit" ? "border-b-2 border-primary-500 text-primary-500" : "hover:text-leather-300"}`}
-            onClick={() => setTab("edit")}
-          >
-            Edit Details
-          </button>
-        </div>
+        <Tabs
+          tabs={[
+            { key: "students", label: `Students (${members?.total ?? batch.student_count})` },
+            { key: "attendance", label: "Attendance" },
+            { key: "add", label: "Add manually" },
+            { key: "upload", label: "Upload Excel" },
+            { key: "edit", label: "Edit details" },
+          ]}
+          active={tab}
+          onChange={(key) => setTab(key as typeof tab)}
+        />
 
-        <div className="p-5 min-h-[300px]">
+        <div className="min-h-[300px] py-5">
           {tab === "students" && <BatchStudentsTab batchId={batch.id} />}
+          {tab === "attendance" && (
+            <BatchAttendanceTab
+              batchId={batch.id}
+              onOpenSession={(classId) => {
+                onClose();
+                navigate(`/admin/attendance?class=${encodeURIComponent(classId)}`);
+              }}
+            />
+          )}
           {tab === "add" && <BatchAddTab batchId={batch.id} onSuccess={() => setTab("students")} />}
           {tab === "upload" && <BatchUploadTab batchId={batch.id} onSuccess={() => setTab("students")} />}
           {tab === "edit" && <BatchEditTab batch={batch} onSuccess={onClose} />}
         </div>
         
-        <div className="border-t border-leather-50/10 bg-cream-100/50 p-4 flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" className="text-red-600 hover:bg-red-50" onClick={() => setShowDel(true)}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] pt-5">
+          <Button variant="danger" onClick={() => setShowDel(true)}>
             <Trash2 size={16} className="mr-2" /> Delete Batch
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="primary" onClick={() => navigate("/admin/attendance")}>
+            <Button variant="secondary" onClick={() => navigate(`/admin/batches/${encodeURIComponent(batch.id)}/monitor`)}>
+              <BarChart3 size={16} className="mr-2" /> Monitor batch
+            </Button>
+            <Button variant="primary" onClick={() => navigate(`/admin/attendance?batch=${encodeURIComponent(batch.id)}`)}>
               <CalendarCheck size={16} className="mr-2" /> Take Attendance
             </Button>
             <Button variant="secondary" onClick={onClose}>
@@ -241,26 +253,50 @@ function ManageBatchModal({ batch, onClose }: { batch: any; onClose: () => void 
   );
 }
 
-function BatchStudentsTab({ batchId }: { batchId: string }) {
+function BatchAttendanceTab({
+  batchId,
+  onOpenSession,
+}: {
+  batchId: string;
+  onOpenSession: (classId: string) => void;
+}) {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useBatchStudents(batchId, page);
-  const navigate = useNavigate();
+  const { data, isLoading, isError, error, refetch } = useClasses({ page, page_size: 100, batch_id: batchId });
 
   if (isLoading) return <Skeleton className="h-48 w-full rounded-3xl" />;
-  if (!data || data.items.length === 0) return <p className="text-sm text-leather-200 py-10 text-center">No students are assigned to this batch yet.</p>;
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-10 text-center">
+        <p className="text-sm text-leather-200">{errorMessage(error)}</p>
+        <Button size="sm" variant="secondary" onClick={() => { void refetch(); }}>Retry</Button>
+      </div>
+    );
+  }
+  if (!data || data.items.length === 0) {
+    return (
+      <p className="py-10 text-center text-sm text-leather-200">
+        No class attendance sessions are linked to this batch yet.
+      </p>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto rounded-xl ring-1 ring-black/5">
-        <Table headers={["Roll Number", "Name", "Branch", ""]}>
-          {data.items.map((s: any) => (
-            <tr key={s.id} className="hover:bg-cream-200/30">
-              <td className="px-4 py-2 text-xs font-bold text-leather-300">{s.roll_number}</td>
-              <td className="px-4 py-2 text-xs text-leather-200">{s.first_name} {s.last_name}</td>
-              <td className="px-4 py-2 text-xs text-leather-50/80">{s.branch} - {s.section}</td>
-              <td className="px-4 py-2 text-right">
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/students/${s.id}/report`)}>
-                  <Eye size={14} className="mr-1" /> View
+      <p className="text-xs text-leather-50/80">{data.total} class sessions in this batch</p>
+      <div className="neo-inset-surface overflow-hidden rounded-2xl">
+        <Table headers={["Date", "Session", "Attendance", ""]}>
+          {data.items.map((session) => (
+            <tr key={session.id} className="hover:bg-cream-200/30">
+              <td className="whitespace-nowrap px-4 py-2.5 text-xs font-medium text-leather-300">
+                {format(new Date(`${session.date.slice(0, 10)}T00:00:00`), "EEE, MMM d, yyyy")}
+              </td>
+              <td className="px-4 py-2.5 text-xs text-leather-200">{session.subject}</td>
+              <td className="px-4 py-2.5">
+                {session.attendance_marked ? <Badge tone="green">marked</Badge> : <Badge tone="amber">pending</Badge>}
+              </td>
+              <td className="px-4 py-2.5 text-right">
+                <Button size="sm" variant="secondary" onClick={() => onOpenSession(session.id)}>
+                  {session.attendance_marked ? "View attendance" : "Open session"}
                 </Button>
               </td>
             </tr>
@@ -268,6 +304,77 @@ function BatchStudentsTab({ batchId }: { batchId: string }) {
         </Table>
       </div>
       {data.total_pages > 1 && <Pagination page={page} totalPages={data.total_pages} onChange={setPage} />}
+    </div>
+  );
+}
+
+function BatchStudentsTab({ batchId }: { batchId: string }) {
+  const [page, setPage] = useState(1);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string; rollNumber: string } | null>(null);
+  const { data, isLoading, isError, error, refetch } = useBatchStudents(batchId, page);
+  const remove = useRemoveBatchStudent();
+  const toast = useToast();
+  const navigate = useNavigate();
+
+  if (isLoading) return <Skeleton className="h-48 w-full rounded-3xl" />;
+  if (isError) return <ErrorState message={errorMessage(error)} onRetry={() => { void refetch(); }} />;
+  if (!data || data.items.length === 0) return <p className="text-sm text-leather-200 py-10 text-center">No students are assigned to this batch yet.</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="neo-inset-surface overflow-hidden rounded-2xl">
+        <Table headers={["Roll Number", "Name", "Branch", ""]}>
+          {data.items.map((s: any) => (
+            <tr key={s.id} className="hover:bg-cream-200/30">
+              <td className="px-4 py-2 text-xs font-bold text-leather-300">{s.roll_number}</td>
+              <td className="px-4 py-2 text-xs text-leather-200">{s.first_name} {s.last_name}</td>
+              <td className="px-4 py-2 text-xs text-leather-50/80">{s.branch} - {s.section}</td>
+              <td className="px-4 py-2 text-right">
+                <div className="flex items-center justify-end gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/students/${s.id}/report`)}>
+                    <Eye size={14} className="mr-1" /> View
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-danger-700"
+                    onClick={() => setRemoveTarget({
+                      id: s.id,
+                      name: `${s.first_name} ${s.last_name}`.trim(),
+                      rollNumber: s.roll_number,
+                    })}
+                  >
+                    <UserMinus size={14} className="mr-1" /> Remove
+                  </Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      </div>
+      {data.total_pages > 1 && <Pagination page={page} totalPages={data.total_pages} onChange={setPage} />}
+      <ConfirmDialog
+        open={!!removeTarget}
+        title="Remove student from batch?"
+        message={<>
+          Remove <strong>{removeTarget?.name}</strong> ({removeTarget?.rollNumber}) from this batch?
+          Their student profile and saved attendance will remain. You can add them back using their roll number.
+        </>}
+        confirmLabel="Remove from batch"
+        loading={remove.isPending}
+        onConfirm={() => {
+          if (!removeTarget) return;
+          remove.mutate({ batchId, studentId: removeTarget.id }, {
+            onSuccess: () => {
+              toast.push("success", "Student removed from batch");
+              setRemoveTarget(null);
+              if (data.items.length === 1 && page > 1) setPage(page - 1);
+            },
+            onError: (err) => toast.push("error", errorMessage(err)),
+          });
+        }}
+        onCancel={() => setRemoveTarget(null)}
+      />
     </div>
   );
 }
@@ -346,7 +453,7 @@ function BatchUploadTab({ batchId, onSuccess }: { batchId: string; onSuccess: ()
           type="file" 
           accept=".xlsx" 
           onChange={(e) => setFile(e.target.files?.[0] || null)} 
-          className="file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[var(--bg)] file:text-[var(--text-muted)] file:shadow-[var(--neo-out-sm)] hover:file:shadow-[var(--neo-in)] active:file:shadow-[var(--neo-in)] file:transition-all file:cursor-pointer text-leather-200"
+          className="file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-[var(--bg)] file:text-[var(--text-muted)] file:shadow-btn-secondary hover:file:shadow-card-recess active:file:shadow-card-recess file:transition-all file:cursor-pointer text-leather-200"
         />
         <Button onClick={handleUpload} loading={upload.isPending} disabled={!file}>
           <Upload size={16} className="mr-2" /> Upload

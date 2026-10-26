@@ -213,9 +213,9 @@ def setup_logging() -> None:
     root.handlers = [handler]
     root.setLevel(logging.INFO)
     for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "motor", "pymongo"):
-        logging.getLogger(name).handlers = [handler]
-    for name in ("uvicorn.access",):
-        logging.getLogger(name).propagate = False
+        logger = logging.getLogger(name)
+        logger.handlers = [handler]
+        logger.propagate = False
 
 
 def get_logger(name: str) -> logging.Logger:

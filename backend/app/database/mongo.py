@@ -120,6 +120,10 @@ INDEX_SPEC: dict[str, list[tuple]] = {
         ([("student_id", 1)], {}),
         ([("platform", 1)], {}),
     ],
+    "coding_activity": [
+        ([("student_id", 1), ("platform", 1), ("date", 1)], {"unique": True}),
+        ([("student_id", 1), ("date", 1)], {}),
+    ],
     "leaderboard_scores": [
         ([("student_id", 1)], {}),
         ([("platform", 1), ("score", -1)], {}),
@@ -139,6 +143,9 @@ INDEX_SPEC: dict[str, list[tuple]] = {
     "invitations": [
         ([("token_hash", 1)], {"unique": True}),
         ([("email", 1)], {}),
+        ([("expires_at", 1)], {"expireAfterSeconds": 0}),
+    ],
+    "import_previews": [
         ([("expires_at", 1)], {"expireAfterSeconds": 0}),
     ],
     "email_logs": [

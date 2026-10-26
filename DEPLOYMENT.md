@@ -1,4 +1,4 @@
-# Deployment Guide (no Docker)
+# Deployment Guide (native processes)
 
 Target: a single Linux VM (or Windows Server) running the API, worker and built frontend as native processes behind Nginx. MongoDB Atlas and Redis are managed services or separate hosts.
 
@@ -29,13 +29,15 @@ npm run build          # outputs dist/
 ```
 
 Ship `frontend/dist` to the server, e.g. `/var/www/lms`.
+Set `FRONTEND_DIST_DIR=/var/www/lms` in the environment so the API can serve
+the deployed build.
 
 ## 4. Install the backend
 
 ```bash
 cd /opt/lms/backend
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+python3 -m venv ../.venv
+../.venv/bin/pip install -r requirements.txt
 ```
 
 ## 5. Environment
@@ -45,7 +47,7 @@ Create `/opt/lms/.env` (mode 600), based on `.env.example`:
 ```env
 APP_ENV=production
 APP_URL=https://lms.example.com
-API_URL=https://lms.example.com/api
+API_URL=https://lms.example.com
 MONGODB_URI=mongodb+srv://...
 JWT_SECRET=<48-char random>
 SECRET_KEY=<48-char random>
@@ -57,6 +59,8 @@ GITHUB_API_TOKEN=<optional>
 ```
 
 In production (`APP_ENV != development`) auth cookies gain the `Secure` flag automatically.
+Set `APP_URL` to the URL that students and admins open; invitation and reset
+emails use it for links.
 
 ## 6. Process managers
 
@@ -142,25 +146,29 @@ server {
 
 ```bash
 cd /opt/lms/backend
-.venv/bin/python -m scripts.reset_db   # optional: wipe all data for a clean slate
-curl -s https://lms.example.com/api/health
+curl -fsS https://lms.example.com/api/ready
 ```
 
-Expected: `{"api":"healthy","database":"healthy","redis":"healthy","worker":"healthy", ...}`.
+Expected: `{"ready":true}` with HTTP 200. A database outage returns HTTP 503.
+`/api/health` also reports the optional Redis and worker status; those may be
+`unhealthy` or `unknown` in a single-process deployment without a worker.
 
-Create your real super admin manually — no demo data is seeded.
+Create the first super admin with `backend/scripts/create_admin.py` (run as
+`python -m scripts.create_admin EMAIL PASSWORD` from `backend/`). No demo data
+is seeded. Do not run `scripts.reset_db` as part of deployment: it drops every
+collection in the configured database.
 
 ## 9. Operations checklist
 
 - [ ] TLS certificate auto-renewal (certbot timer)
 - [ ] Atlas backups + PITR enabled
 - [ ] Log rotation for systemd units (journald default is fine)
-- [ ] Monitoring: poll `/api/health` externally; alert when database/worker unhealthy
+- [ ] Monitoring: poll `/api/ready` externally; alert on HTTP 503. Monitor optional worker status separately via `/api/health` if it is deployed.
 - [ ] Rotate `JWT_SECRET`/`SECRET_KEY` per incident policy (invalidates all sessions)
 - [ ] Keep SMTP App Password scoped to this integration only; rotate if leaked
 - [ ] Scale: add more uvicorn workers vertically, more `lms-worker` replicas horizontally (ARQ balances via Redis)
 
-## 10. Zero-downtime updates
+## 10. Updates
 
 ```bash
 cd /opt/lms && git pull

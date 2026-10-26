@@ -17,6 +17,7 @@ PLATFORM_MAXES = {
     "codeforces": {"problems_solved": 1000, "rating": 2500},
     "atcoder": {"rating": 2800},
     "github": {"contributions": 1200, "public_repos": 60, "followers": 300},
+    "geeksforgeeks": {"problems_solved": 500},
 }
 
 

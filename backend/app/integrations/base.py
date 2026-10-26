@@ -14,6 +14,7 @@ import logging
 from typing import Any
 
 import httpx
+from app.integrations.activity_time import get_activity_timezone
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,17 @@ class CodingPlatformAdapter:
     display_name: str = "Base"
 
     def __init__(
-        self, timeout: int = 15, max_retries: int = 3, retry_delay: float = 2.0
+        self,
+        timeout: int = 15,
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
+        activity_timezone: str = "Asia/Kolkata",
     ):
         self.timeout = timeout
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+        self.activity_timezone = activity_timezone
+        self.activity_tz = get_activity_timezone(activity_timezone)
 
     async def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
         delay = self.retry_delay
@@ -52,6 +59,13 @@ class CodingPlatformAdapter:
                     )
                 if response.status_code == 404:
                     raise AdapterError("Profile not found on platform")
+                if 400 <= response.status_code < 500:
+                    detail = response.text.strip()[:200]
+                    suffix = f": {detail}" if detail else ""
+                    raise AdapterError(
+                        f"{self.name} request rejected with HTTP "
+                        f"{response.status_code}{suffix}"
+                    )
                 if response.status_code == 429 or response.status_code >= 500:
                     # Retry with exponential backoff
                     wait = delay * (2 ** (attempt - 1))
