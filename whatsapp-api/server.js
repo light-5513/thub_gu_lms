@@ -13,6 +13,7 @@ const { Client, RemoteAuth } = require("whatsapp-web.js");
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 const port = Number(process.env.PORT || 10000);
+const bindHost = process.env.WHATSAPP_API_HOST || "0.0.0.0";
 const apiToken = process.env.WHATSAPP_API_TOKEN || "";
 const outboxSecret = process.env.WHATSAPP_OUTBOX_KEY || "";
 const dataPath = process.env.WHATSAPP_DATA_PATH || "/tmp/wwebjs_auth";
@@ -333,7 +334,19 @@ async function main() {
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--disable-default-apps",
+        "--disable-sync",
+        "--metrics-recording-only",
+        "--no-first-run",
+        "--renderer-process-limit=1",
+      ],
     },
   });
 
@@ -430,7 +443,7 @@ async function main() {
     }
   });
 
-  app.listen(port, "0.0.0.0", () => console.log(`WhatsApp API listening on ${port}`));
+  app.listen(port, bindHost, () => console.log(`WhatsApp API listening on ${bindHost}:${port}`));
   await initializeWhatsAppClient();
 }
 

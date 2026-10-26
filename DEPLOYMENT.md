@@ -65,15 +65,13 @@ messages and reset emails use it for links.
 ## 6. WhatsApp invitation service
 
 The Invitations page can send each setup link through email, WhatsApp, or both. Bulk invitations accept pasted rows or uploaded CSV/XLSX files; CSV and Excel sample templates are available beside the upload control. Uploading prepares rows for review and does not send until confirmed.
-Email uses the LMS SMTP configuration; WhatsApp uses the Node service in
-`whatsapp-api/`.
-Run it beside the LMS API and set `WHATSAPP_API_URL` and `WHATSAPP_API_TOKEN`
-on the Python service. The Node service needs the same MongoDB database so it
-can persist the linked-device session in GridFS and track invitation delivery.
-It also needs a private `WHATSAPP_OUTBOX_KEY` to encrypt queued invitation
-links until they are delivered.
+Email uses the LMS SMTP configuration. The Render Docker container starts the
+Node WhatsApp service in `whatsapp-api/` alongside the LMS API and connects it
+to the same MongoDB database. It stores the linked-device session in GridFS
+and encrypts queued invitation links in the WhatsApp outbox.
 
-For local development, install the service dependencies and start the API:
+For local development, install the Node service dependencies and start it
+separately:
 
 ```bash
 cd whatsapp-api
@@ -87,25 +85,29 @@ Invitations**, scan the displayed QR from WhatsApp → Linked devices, and wait
 for the connection status to show ready. Enter each recipient's phone number
 in international format.
 
-The Render blueprint keeps both services on the Free plan. The WhatsApp API is
-a separate public web service because Free services cannot receive private
-network traffic. The LMS calls its HTTPS URL with a bearer token; `/send` and
-`/status` require that token. Both services use the same MongoDB database, so
-the WhatsApp linked-device session survives service sleeps without a Render
-disk.
+The Render Docker image starts the Python LMS API and the Node WhatsApp API in
+the same Free web service. The WhatsApp API listens on loopback port 10001, and
+the container sets `WHATSAPP_API_URL` automatically. Both processes share the
+LMS MongoDB settings; the WhatsApp session is stored in MongoDB GridFS, so it
+does not need a Render disk. The container uses the LMS app secret to derive
+stable internal API and outbox keys if Render has not supplied explicit
+WhatsApp keys.
 
-Free services sleep after 15 minutes without inbound requests and can take
-about a minute to wake. Opening Invitations or sending a WhatsApp invite wakes
-the API; messages are queued while WhatsApp reconnects. The API may need a QR
-scan again after a sleep or restart. Free instance hours are shared across the
-workspace, so two active services consume those hours faster.
+Render Free services sleep after 15 minutes without inbound requests. When the
+LMS wakes, the container starts both APIs and WhatsApp reconnects from its
+MongoDB session; it may take about a minute and may require scanning a new QR.
+Free compute is limited to 512 MB, so the combined Python app and Chromium
+browser may exceed available memory. The container restarts the WhatsApp
+process if it exits, but sustained memory pressure can still make WhatsApp
+unavailable.
 
-When moving from the old private `lms-whatsapp-api` service, copy its
-`WHATSAPP_OUTBOX_KEY` to the new service first if it has queued messages to
-preserve. Then suspend/delete the old private service before starting the new
-public `lms-whatsapp-api-free` service so two clients do not use the same saved
-session. Render does not delete an existing service just because it was removed
-from `render.yaml`.
+When moving from an old separate `lms-whatsapp-api` or
+`lms-whatsapp-api-free` service, suspend it before deploying the combined
+container so two clients do not use the same saved session. Copy its
+`WHATSAPP_OUTBOX_KEY` into the `lms` service first if queued messages need to
+be preserved. Delete the old service after confirming the combined deployment
+works; removing it from `render.yaml` does not delete the existing Render
+resource.
 
 Invitations are accepted into a durable encrypted outbox. The page reports
 queued, sent, or failed delivery status and refreshes while invitations are

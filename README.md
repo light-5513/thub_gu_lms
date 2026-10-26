@@ -15,6 +15,8 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 > entire app (API + built frontend) on one port. No Docker, no separate
 > frontend dev server, no Redis, no separate worker process required.
 > See [Quick start](#quick-start).
+> The Render Docker image starts the WhatsApp API in the same container as the
+> LMS, on an internal loopback port.
 
 ---
 

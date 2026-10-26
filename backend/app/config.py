@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     SMTP_FROM: str | None = None
     SMTP_USE_TLS: bool = True
 
-    # whatsapp-web.js invitation service
+    # whatsapp-web.js invitation service (embedded on Render)
     WHATSAPP_API_URL: str | None = None
     WHATSAPP_API_TOKEN: str | None = None
 
