@@ -399,9 +399,6 @@ async function main() {
     });
   });
   app.post("/send", authenticate, async (req, res) => {
-    if (state !== "ready") {
-      return res.status(503).json({ error: "WhatsApp is not connected yet", state });
-    }
     const { phone, text, invitation_id: invitationId, expires_at: expiresAtRaw } = req.body || {};
     if (typeof text !== "string" || text.trim().length === 0 || text.length > 5000) {
       return res.status(400).json({ error: "Message text must be between 1 and 5000 characters" });
@@ -433,7 +430,7 @@ async function main() {
     }
   });
 
-  app.listen(port, "0.0.0.0", () => console.log(`Private WhatsApp API listening on ${port}`));
+  app.listen(port, "0.0.0.0", () => console.log(`WhatsApp API listening on ${port}`));
   await initializeWhatsAppClient();
 }
 

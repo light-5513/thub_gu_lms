@@ -226,7 +226,7 @@ export function InvitationsPage() {
             {whatsapp.data?.state === "unconfigured"
               ? "WhatsApp service is not configured. Set WHATSAPP_API_URL and WHATSAPP_API_TOKEN in the app environment."
               : whatsapp.data?.state === "unavailable"
-                ? "WhatsApp service is unavailable. Check that the private service is running."
+                ? "WhatsApp service is unavailable or waking up. Wait a moment and try again."
                 : `WhatsApp status: ${whatsapp.data?.state || "connecting"}. Keep this page open; the QR code will appear when ready.`}
             {whatsapp.data?.error && <span className="mt-1 block text-xs">{whatsapp.data.error}</span>}
           </p>

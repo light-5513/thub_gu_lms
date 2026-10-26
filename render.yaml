@@ -1,7 +1,7 @@
 services:
   - type: web
     env: docker
-    plan: standard
+    plan: free
     name: lms
     rootDir: .
     healthCheckPath: /api/ready
@@ -36,12 +36,45 @@ services:
       - key: SMTP_USE_TLS
         value: "true"
       - key: WHATSAPP_API_URL
-        value: http://127.0.0.1:10001
-      - key: WHATSAPP_API_PORT
-        value: "10001"
+        fromService:
+          name: lms-whatsapp-api-free
+          type: web
+          envVarKey: WHATSAPP_PUBLIC_URL
+      - key: WHATSAPP_API_TOKEN
+        fromService:
+          name: lms-whatsapp-api-free
+          type: web
+          envVarKey: WHATSAPP_API_TOKEN
+
+  - type: web
+    env: docker
+    plan: free
+    name: lms-whatsapp-api-free
+    healthCheckPath: /health
+    dockerfilePath: ./whatsapp-api/Dockerfile
+    dockerContext: ./whatsapp-api
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "10000"
       - key: WHATSAPP_API_TOKEN
         generateValue: true
       - key: WHATSAPP_OUTBOX_KEY
         generateValue: true
       - key: WHATSAPP_SESSION_NAME
         value: lms-invitations
+      - key: WHATSAPP_PUBLIC_URL
+        fromService:
+          name: lms-whatsapp-api-free
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MONGODB_URI
+        fromService:
+          name: lms
+          type: web
+          envVarKey: MONGODB_URI
+      - key: MONGODB_DATABASE
+        fromService:
+          name: lms
+          type: web
+          envVarKey: MONGODB_DATABASE

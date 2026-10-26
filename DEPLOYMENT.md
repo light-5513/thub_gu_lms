@@ -65,15 +65,13 @@ messages and reset emails use it for links.
 ## 6. WhatsApp invitation service
 
 The Invitations page can send each setup link through email, WhatsApp, or both. Bulk invitations accept pasted rows or uploaded CSV/XLSX files; CSV and Excel sample templates are available beside the upload control. Uploading prepares rows for review and does not send until confirmed.
-Email uses the LMS SMTP configuration. In the Render Docker deployment, the
-Node service in `whatsapp-api/` runs inside the same container as the Python
-LMS API. The container starts the private WhatsApp API on loopback port 10001
-and points the LMS to it automatically. Both processes use the same MongoDB
-database; the Node service stores the linked-device session in GridFS and keeps
-invitation messages in an encrypted outbox.
-Local development can still run the Node API separately, using the same
-MongoDB connection, `WHATSAPP_API_URL`, `WHATSAPP_API_TOKEN`, and
-`WHATSAPP_OUTBOX_KEY` values described below.
+Email uses the LMS SMTP configuration; WhatsApp uses the Node service in
+`whatsapp-api/`.
+Run it beside the LMS API and set `WHATSAPP_API_URL` and `WHATSAPP_API_TOKEN`
+on the Python service. The Node service needs the same MongoDB database so it
+can persist the linked-device session in GridFS and track invitation delivery.
+It also needs a private `WHATSAPP_OUTBOX_KEY` to encrypt queued invitation
+links until they are delivered.
 
 For local development, install the service dependencies and start the API:
 
@@ -89,24 +87,25 @@ Invitations**, scan the displayed QR from WhatsApp → Linked devices, and wait
 for the connection status to show ready. Enter each recipient's phone number
 in international format.
 
-The Render blueprint runs both services in the `lms` container on the paid
-`standard` plan so Chromium has enough memory and the WhatsApp client stays
-online. `WHATSAPP_API_TOKEN` and `WHATSAPP_OUTBOX_KEY` are generated on the LMS
-service, and the MongoDB environment already configured there is shared with
-the Node process. If either WhatsApp secret is absent, the container derives a
-stable, purpose-specific value from the existing `SECRET_KEY` or `JWT_SECRET`.
-The session is stored in MongoDB, so it does not need a Render disk. After
-deployment, open the Invitations page and scan the QR if the existing WhatsApp
-session needs to be paired again.
+The Render blueprint keeps both services on the Free plan. The WhatsApp API is
+a separate public web service because Free services cannot receive private
+network traffic. The LMS calls its HTTPS URL with a bearer token; `/send` and
+`/status` require that token. Both services use the same MongoDB database, so
+the WhatsApp linked-device session survives service sleeps without a Render
+disk.
 
-When moving from the old separate `lms-whatsapp-api` Render service, copy its
-`WHATSAPP_OUTBOX_KEY` to the `lms` service first if it has queued messages to
-preserve. Then suspend the old service before deploying the combined container
-so two WhatsApp clients do not use the same saved session. Once the combined
-deployment is working, delete the old service manually if you no longer need
-it; removing a service from `render.yaml` does not delete the existing Render
-resource. The `standard` plan moves the paid compute allocation to `lms`; keep
-the old service suspended to avoid paying for both during/after migration.
+Free services sleep after 15 minutes without inbound requests and can take
+about a minute to wake. Opening Invitations or sending a WhatsApp invite wakes
+the API; messages are queued while WhatsApp reconnects. The API may need a QR
+scan again after a sleep or restart. Free instance hours are shared across the
+workspace, so two active services consume those hours faster.
+
+When moving from the old private `lms-whatsapp-api` service, copy its
+`WHATSAPP_OUTBOX_KEY` to the new service first if it has queued messages to
+preserve. Then suspend/delete the old private service before starting the new
+public `lms-whatsapp-api-free` service so two clients do not use the same saved
+session. Render does not delete an existing service just because it was removed
+from `render.yaml`.
 
 Invitations are accepted into a durable encrypted outbox. The page reports
 queued, sent, or failed delivery status and refreshes while invitations are

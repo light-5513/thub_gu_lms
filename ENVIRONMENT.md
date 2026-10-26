@@ -52,12 +52,11 @@ If unset, emails are skipped and logged as failed (`email_logs`) — flows still
 
 ## WhatsApp invitations
 
-Invitations can be sent by email, WhatsApp, or both. WhatsApp messages are queued through the private Node service in `whatsapp-api/`, which runs `whatsapp-web.js` and stores its linked-device session in MongoDB GridFS. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
+Invitations can be sent by email, WhatsApp, or both. WhatsApp messages are queued through the Node service in `whatsapp-api/`, which runs `whatsapp-web.js` and stores its linked-device session in MongoDB GridFS. On Render Free, this is a separate public web service and may need a cold start. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `WHATSAPP_API_URL` | `http://localhost:10000` | Private WhatsApp service address (`host:port` is also accepted) |
-| `WHATSAPP_API_PORT` | `10001` | Loopback port used by the embedded WhatsApp API in the Render Docker container |
+| `WHATSAPP_API_URL` | `http://localhost:10000` | WhatsApp API base URL; Render uses the service's HTTPS URL |
 | `WHATSAPP_API_TOKEN` | generated secret | Authenticates requests from the LMS API to the WhatsApp service |
 | `WHATSAPP_OUTBOX_KEY` | private random secret | Encrypts invitation links while they wait in the Node service's MongoDB outbox |
 | `WHATSAPP_MONGODB_URI` | optional | Node-specific MongoDB URI override; useful when Windows Node cannot resolve the Atlas `mongodb+srv` record |

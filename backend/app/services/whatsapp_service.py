@@ -50,7 +50,8 @@ class WhatsAppService:
             payload["expires_at"] = expires_at.isoformat()
 
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            # A Free Render WhatsApp service may need about a minute to wake.
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 response = await client.post(
                     f"{url}/send",
                     json=payload,
@@ -73,7 +74,7 @@ class WhatsAppService:
 
     @staticmethod
     async def send_message(phone: str, text: str) -> bool:
-        """Queue a WhatsApp message through the private whatsapp-web.js service."""
+        """Queue a WhatsApp message through the whatsapp-web.js service."""
         return await WhatsAppService._queue_message(phone, text) is not None
 
     @staticmethod
@@ -95,7 +96,9 @@ class WhatsAppService:
         if not url:
             return {"configured": False, "state": "unconfigured", "qr_data_url": None}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            # Status requests also wake a sleeping Free Render service. Keep
+            # this short so the UI can poll again while Render is starting it.
+            async with httpx.AsyncClient(timeout=20.0) as client:
                 response = await client.get(f"{url}/status", headers=_headers())
             response.raise_for_status()
             return {"configured": True, **response.json()}
@@ -105,5 +108,5 @@ class WhatsAppService:
                 "configured": True,
                 "state": "unavailable",
                 "qr_data_url": None,
-                "error": "Could not reach the WhatsApp service. Check that it is running and WHATSAPP_API_URL is correct.",
+                "error": "Could not reach the WhatsApp service. It may be waking up; wait a moment and try again.",
             }
