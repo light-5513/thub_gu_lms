@@ -167,7 +167,7 @@ async def forgot_password(
     }
 
 
-# ------------------------------------------------------------------ email invitations (public)
+# ------------------------------------------------------------------ invitation acceptance (public)
 @router.get("/invitation/{token}")
 async def invitation_info(token: str, request: Request, db=Depends(get_db)):
     """Public: confirm an invitation token is valid and show which email it is for."""

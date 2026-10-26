@@ -6,9 +6,9 @@ Copy `.env.example` → `.env` and fill in values. `.env` is git-ignored and mus
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `APP_NAME` | `LMS` | Product name used in emails/UI |
+| `APP_NAME` | `LMS` | Product name used in messages/UI |
 | `APP_ENV` | `development` | `development` enables Swagger + non-secure cookies; anything else hardens them |
-| `APP_URL` | `http://localhost:8000` | Public frontend URL (used in email links); use port 3000 only with the Vite development server |
+| `APP_URL` | `http://localhost:8000` | Public frontend URL (used in invitation and reset links); use port 3000 only with the Vite development server |
 | `API_URL` | `http://localhost:8000` | Public API origin |
 
 ## MongoDB Atlas
@@ -49,6 +49,21 @@ Use a Google account's **App Password** (2-Step Verification must be enabled): G
 | `SMTP_USE_TLS` | `true` |
 
 If unset, emails are skipped and logged as failed (`email_logs`) — flows still work.
+
+## WhatsApp invitations
+
+Invitations can be sent by email, WhatsApp, or both. WhatsApp messages are queued through the private Node service in `whatsapp-api/`, which runs `whatsapp-web.js` and stores its linked-device session in MongoDB GridFS. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `WHATSAPP_API_URL` | `http://localhost:10000` | Private WhatsApp service address (`host:port` is also accepted) |
+| `WHATSAPP_API_TOKEN` | generated secret | Authenticates requests from the LMS API to the WhatsApp service |
+| `WHATSAPP_OUTBOX_KEY` | private random secret | Encrypts invitation links while they wait in the Node service's MongoDB outbox |
+| `WHATSAPP_MONGODB_URI` | optional | Node-specific MongoDB URI override; useful when Windows Node cannot resolve the Atlas `mongodb+srv` record |
+
+For local use, start the Node service with the same `MONGODB_URI` and `MONGODB_DATABASE` as the LMS, then set all three variables above. Open **Admin → Invitations** and scan the QR code with the WhatsApp account that should send the links. The page reports when the client is ready. Use international phone numbers with country codes, such as `+919876543210`.
+
+The linked-device session is sensitive and is stored in the configured MongoDB database. The `whatsapp-web.js` project describes itself as an unofficial WhatsApp Web client; WhatsApp may change the web protocol or restrict accounts using unofficial clients.
 
 ## Redis / worker
 

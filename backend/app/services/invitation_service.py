@@ -1,18 +1,15 @@
-"""Email-invitation flow: admin invites an email, student completes signup.
+"""Email and WhatsApp invitations share a secure student setup link."""
 
-Flow:
-  admin submits email → single-use token created (hash stored, 7-day TTL)
-  → invitation email with a setup link → student opens link, fills their
-  details + chooses a password → user + student records are created atomically.
-"""
-
+import asyncio
 from datetime import datetime, timedelta, timezone
 
+from app.config import settings
 from app.core import security
 from app.core.errors import AppError, ConflictError, NotFoundError
 from app.models.enums import AuditAction, Role
 from app.repositories.system import AuditRepository
 from app.services.audit_service import AuditService
+from app.services.whatsapp_service import WhatsAppService
 
 INVITE_TTL_DAYS = 7
 
@@ -24,8 +21,23 @@ class InvitationService:
         self.audit = AuditService(db)
 
     # ------------------------------------------------------------------ create
-    async def invite(self, email: str, actor: dict, phone: str | None = None, role: str = Role.STUDENT.value, ip: str | None = None) -> dict:
+    async def invite(
+        self,
+        email: str,
+        actor: dict,
+        phone: str | None = None,
+        role: str = Role.STUDENT.value,
+        ip: str | None = None,
+        channels: list[str] | None = None,
+    ) -> dict:
         email = email.lower().strip()
+        requested_channels = list(dict.fromkeys(channels or ["email"]))
+        if not requested_channels or set(requested_channels) - {"email", "whatsapp"}:
+            raise AppError("Select email, WhatsApp, or both delivery channels", 400)
+        if "whatsapp" in requested_channels and (
+            not phone or not 8 <= sum(char.isdigit() for char in phone) <= 15
+        ):
+            raise AppError("Enter a WhatsApp number with country code, such as +919876543210", 400)
 
         if await self.db.users.find_one({"email": email}):
             raise ConflictError("An account with this email already exists")
@@ -37,35 +49,133 @@ class InvitationService:
 
         raw_token = security.generate_secure_token()
         now = _utcnow()
+        expires_at = now + timedelta(days=INVITE_TTL_DAYS)
         await self.invites.delete_many({"email": email})  # replace any stale invite
-        await self.invites.insert_one(
+        invitation = await self.invites.insert_one(
             {
                 "email": email,
                 "phone": phone,
                 "role": role,
                 "token_hash": security.hash_token(raw_token),
                 "used": False,
+                "email_status": "queued" if "email" in requested_channels else None,
+                "whatsapp_status": "queued" if "whatsapp" in requested_channels else None,
                 "invited_by": str(actor["_id"]),
-                "expires_at": now + timedelta(days=INVITE_TTL_DAYS),
+                "expires_at": expires_at,
                 "created_at": now,
             }
         )
 
-        from app.database.redis import enqueue_job
-
-        queued = await enqueue_job(
-            "send_email_task",
-            kind="invitation_link",
-            email=email,
-            phone=phone,
-            setup_url=f"{_app_url()}/accept-invitation?token={raw_token}",
+        setup_url = f"{_app_url()}/accept-invitation?token={raw_token}"
+        message = (
+            f"You're invited to create your {settings.APP_NAME} student account. "
+            f"Complete registration using this link: {setup_url} "
+            f"The link can be used once and expires in {INVITE_TTL_DAYS} days."
         )
-        if not queued:
-            from app.services.email_service import EmailService
 
-            await EmailService(self.db).send_invitation_link_email(
-                email, f"{_app_url()}/accept-invitation?token={raw_token}", phone=phone
+        async def queue_email() -> tuple[str, str | None]:
+            try:
+                from app.database.redis import enqueue_job
+
+                queued = await enqueue_job(
+                    "send_email_task",
+                    kind="invitation_link",
+                    email=email,
+                    phone=None,
+                    setup_url=setup_url,
+                    invitation_id=str(invitation.inserted_id),
+                )
+                if queued:
+                    return "queued", None
+
+                from app.services.email_service import EmailService
+
+                sent = await EmailService(self.db).send_invitation_link_email(
+                    email, setup_url
+                )
+                return ("sent", None) if sent else (
+                    "failed",
+                    "Email could not be sent; check the email delivery logs and configuration.",
+                )
+            except Exception as exc:
+                from app.core.logging import get_logger
+
+                get_logger(__name__).exception("Invitation email could not be queued or sent")
+                return (
+                    "failed",
+                    "Email could not be queued or sent; check email delivery logs and configuration.",
+                )
+
+        async def queue_whatsapp() -> tuple[str, str | None, str | None]:
+            try:
+                job_id = await WhatsAppService.queue_invitation(
+                    phone or "",
+                    message,
+                    invitation_id=str(invitation.inserted_id),
+                    expires_at=expires_at,
+                )
+                if job_id:
+                    return "queued", job_id, None
+                return "failed", None, "WhatsApp could not queue the invitation."
+            except Exception as exc:
+                from app.core.logging import get_logger
+
+                get_logger(__name__).exception("WhatsApp invitation could not be queued")
+                return "failed", None, "WhatsApp could not queue the invitation."
+
+        email_status = None
+        email_error = None
+        whatsapp_status = None
+        whatsapp_error = None
+        whatsapp_job_id = None
+        pending = []
+        if "email" in requested_channels:
+            pending.append(("email", queue_email()))
+        if "whatsapp" in requested_channels:
+            pending.append(("whatsapp", queue_whatsapp()))
+        results = await asyncio.gather(*(task for _, task in pending))
+        for (channel, _), result in zip(pending, results):
+            if channel == "email":
+                email_status, email_error = result
+            else:
+                whatsapp_status, whatsapp_job_id, whatsapp_error = result
+
+        successful = any(status in {"queued", "sent"} for status in (email_status, whatsapp_status))
+        if not successful:
+            await self.invites.delete_one({"_id": invitation.inserted_id})
+            details = "; ".join(error for error in (email_error, whatsapp_error) if error)
+            raise AppError(
+                details or "The invitation could not be sent through the selected channels.",
+                503,
             )
+
+        delivery_update = {}
+        if whatsapp_job_id:
+            delivery_update["whatsapp_job_id"] = whatsapp_job_id
+        # Queued states may already have changed to sent in their workers; avoid
+        # overwriting a faster worker result. Only persist inline outcomes here.
+        if email_status in {"sent", "failed"}:
+            delivery_update["email_status"] = email_status
+            delivery_update["email_error"] = email_error
+        if whatsapp_status == "failed":
+            delivery_update["whatsapp_status"] = whatsapp_status
+            delivery_update["whatsapp_error"] = whatsapp_error
+        if delivery_update:
+            await self.invites.update_one(
+                {"_id": invitation.inserted_id},
+                {"$set": delivery_update},
+            )
+
+        channel_results = {
+            "email": email_status,
+            "whatsapp": whatsapp_status,
+        }
+        parts = []
+        if email_status:
+            parts.append(f"Email {email_status}")
+        if whatsapp_status:
+            parts.append(f"WhatsApp {whatsapp_status}")
+        partial = any(status == "failed" for status in (email_status, whatsapp_status))
 
         await self.audit.log(
             AuditAction.INVITATION_SENT,
@@ -73,12 +183,13 @@ class InvitationService:
             role=actor["role"],
             entity="invitation",
             entity_id=email,
-            new_data={"email": email, "role": role},
+            new_data={"email": email, "role": role, "channels": channel_results},
             ip_address=ip,
         )
         return {
-            "message": f"Invitation email sent to {email}",
-            "setup_url": f"{_app_url()}/accept-invitation?token={raw_token}",
+            "message": "; ".join(parts) + f" for {email}.",
+            "channels": channel_results,
+            "partial": partial,
         }
 
     # ------------------------------------------------------------------ inspect

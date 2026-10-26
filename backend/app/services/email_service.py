@@ -123,6 +123,7 @@ class EmailService:
         text: str,
         template: str = "custom",
         phone: str | None = None,
+        fallback_whatsapp: bool = True,
     ) -> bool:
         resend_key = os.environ.get("RESEND_API_KEY")
         email_success = False
@@ -170,7 +171,7 @@ class EmailService:
                         )
 
         # Fallback to WhatsApp if email failed or skipped
-        if not email_success:
+        if not email_success and fallback_whatsapp:
             if not phone:
                 # Attempt to look up the phone in the db if not provided explicitly
                 student = await self.db.students.find_one({"email": recipient})
@@ -215,7 +216,13 @@ class EmailService:
             expires_days=7,
         )
         return await self.send(
-            email, f"You're invited to {settings.APP_NAME}", html, text, "invitation", phone=phone
+            email,
+            f"You're invited to {settings.APP_NAME}",
+            html,
+            text,
+            "invitation",
+            phone=phone,
+            fallback_whatsapp=bool(phone),
         )
 
     async def send_password_reset_email(

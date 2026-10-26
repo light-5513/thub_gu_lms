@@ -59,10 +59,54 @@ GITHUB_API_TOKEN=<optional>
 ```
 
 In production (`APP_ENV != development`) auth cookies gain the `Secure` flag automatically.
-Set `APP_URL` to the URL that students and admins open; invitation and reset
-emails use it for links.
+Set `APP_URL` to the URL that students and admins open; WhatsApp invitation
+messages and reset emails use it for links.
 
-## 6. Process managers
+## 6. WhatsApp invitation service
+
+The Invitations page can send each setup link through email, WhatsApp, or both. Bulk invitations accept pasted rows or uploaded CSV/XLSX files; CSV and Excel sample templates are available beside the upload control. Uploading prepares rows for review and does not send until confirmed.
+Email uses the LMS SMTP configuration; WhatsApp uses the Node service in
+`whatsapp-api/`.
+Run it beside the LMS API and set `WHATSAPP_API_URL` and `WHATSAPP_API_TOKEN`
+on the Python service. The Node service needs the same MongoDB database so it
+can persist the linked-device session in GridFS and track invitation delivery.
+It also needs a private `WHATSAPP_OUTBOX_KEY` to encrypt queued invitation
+links until they are delivered.
+
+For local development, install the service dependencies and start the API:
+
+```bash
+cd whatsapp-api
+npm install
+MONGODB_URI='mongodb+srv://...' MONGODB_DATABASE=lms WHATSAPP_API_TOKEN=local-secret WHATSAPP_OUTBOX_KEY=local-encryption-secret npm start
+```
+
+Set `WHATSAPP_API_URL=http://localhost:10000` and
+`WHATSAPP_API_TOKEN=local-secret` in the LMS environment. Open **Admin →
+Invitations**, scan the displayed QR from WhatsApp → Linked devices, and wait
+for the connection status to show ready. Enter each recipient's phone number
+in international format.
+
+The Render blueprint adds a private `lms-whatsapp-api` service and connects it
+to the LMS with generated API and outbox-encryption keys. It uses a paid
+`standard` compute plan because a WhatsApp Web browser needs an always-on
+service; the service stores its login session in MongoDB, so it does not need
+a Render disk. Set the WhatsApp service's `MONGODB_URI` to the same MongoDB
+connection string used by the LMS. Render prompts for `sync: false` values on
+initial Blueprint creation; when adding this service to an existing Blueprint,
+set that value in the service's Environment page if it was not prompted. Keep
+both services in the same Render region. After deployment, open the Invitations page and scan the
+QR to link the sender account. The private service plan adds a Render charge.
+
+Invitations are accepted into a durable encrypted outbox. The page reports
+queued, sent, or failed delivery status and refreshes while invitations are
+pending. The WhatsApp service sends one queued message at a time.
+
+The library is an unofficial WhatsApp Web client. WhatsApp can change its web
+protocol or restrict accounts using unofficial clients; use this only for
+messages recipients expect and are authorized to receive.
+
+## 7. Process managers
 
 Use systemd units.
 
@@ -107,7 +151,7 @@ systemctl daemon-reload
 systemctl enable --now lms-api lms-worker
 ```
 
-## 7. Nginx
+## 8. Nginx
 
 ```nginx
 server {
@@ -142,7 +186,7 @@ server {
 }
 ```
 
-## 8. Bootstrap data & go live
+## 9. Bootstrap data & go live
 
 ```bash
 cd /opt/lms/backend
@@ -158,7 +202,7 @@ Create the first super admin with `backend/scripts/create_admin.py` (run as
 is seeded. Do not run `scripts.reset_db` as part of deployment: it drops every
 collection in the configured database.
 
-## 9. Operations checklist
+## 10. Operations checklist
 
 - [ ] TLS certificate auto-renewal (certbot timer)
 - [ ] Atlas backups + PITR enabled
@@ -168,7 +212,7 @@ collection in the configured database.
 - [ ] Keep SMTP App Password scoped to this integration only; rotate if leaked
 - [ ] Scale: add more uvicorn workers vertically, more `lms-worker` replicas horizontally (ARQ balances via Redis)
 
-## 10. Updates
+## 11. Updates
 
 ```bash
 cd /opt/lms && git pull

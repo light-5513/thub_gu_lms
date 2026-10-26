@@ -3,6 +3,10 @@
 Run with:  arq app.workers.worker.WorkerSettings
 """
 
+from datetime import datetime, timezone
+
+from bson import ObjectId
+
 from app.core.logging import setup_logging
 from app.database import mongo
 from app.database.redis import set_worker_heartbeat
@@ -43,9 +47,55 @@ async def send_email_task(ctx, kind: str, **payload):
                 payload["student_name"], payload["email"], payload["temporary_password"], phone=payload.get("phone")
             )
         if kind == "invitation_link":
-            return await service.send_invitation_link_email(
-                payload["email"], payload["setup_url"], phone=payload.get("phone")
-            )
+            invitation_id = payload.get("invitation_id")
+            invitation_doc = None
+            if invitation_id:
+                try:
+                    invitation_doc = await db.invitations.find_one(
+                        {
+                            "_id": ObjectId(invitation_id),
+                            "used": False,
+                            "expires_at": {
+                                "$gt": datetime.now(timezone.utc).replace(tzinfo=None)
+                            },
+                        },
+                        {"_id": 1},
+                    )
+                except Exception:
+                    invitation_doc = None
+                if not invitation_doc:
+                    return False
+
+            try:
+                sent = await service.send_invitation_link_email(
+                    payload["email"], payload["setup_url"]
+                )
+            except Exception as exc:
+                from app.core.logging import get_logger
+
+                get_logger(__name__).error("Invitation email delivery failed: %s", exc)
+                sent = False
+            if invitation_id:
+                try:
+                    await db.invitations.update_one(
+                        {"_id": ObjectId(invitation_id)},
+                        {
+                            "$set": {
+                                "email_status": "sent" if sent else "failed",
+                                "email_error": None
+                                if sent
+                                else "Email delivery failed; check email_logs.",
+                                "email_updated_at": datetime.now(timezone.utc),
+                            }
+                        }
+                    )
+                except Exception as exc:
+                    from app.core.logging import get_logger
+
+                    get_logger(__name__).error(
+                        "Could not update invitation email status: %s", exc
+                    )
+            return sent
         if kind == "password_reset":
             return await service.send_password_reset_email(
                 payload["student_name"], payload["email"], payload["reset_token"], phone=payload.get("phone")

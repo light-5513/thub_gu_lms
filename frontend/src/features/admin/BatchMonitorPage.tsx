@@ -169,7 +169,7 @@ export function BatchMonitorPage() {
                 <div className="mt-4 space-y-2">
                   {data.coding.platforms.map((platform) => (
                     <div key={platform.platform} className="neo-inset-surface flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
-                      <span className="min-w-0 truncate text-sm font-medium capitalize text-leather-300">{platform.platform.replaceAll("geeksforgeeks", "GeeksforGeeks")}</span>
+                      <span className="min-w-0 truncate text-sm font-medium capitalize text-leather-300">{platform.platform.replace("geeksforgeeks", "GeeksforGeeks")}</span>
                       <span className="shrink-0 text-xs text-leather-200">{platform.profiles} profiles · {platform.active_students} active</span>
                     </div>
                   ))}

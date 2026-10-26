@@ -67,12 +67,18 @@ export function useSandboxToken() {
   });
 }
 
-// ------------------------------------------------------------------ email invitations
-export function useInviteByEmail() {
+// ------------------------------------------------------------------ Email and WhatsApp invitations
+export type InvitationChannel = "email" | "whatsapp";
+
+export function useCreateInvitation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (data: { email: string; phone?: string }) =>
-      (await api.post<{ message: string }>("/admin/invitations", data)).data,
+    mutationFn: async (data: { email: string; phone?: string; channels: InvitationChannel[] }) =>
+      (await api.post<{
+        message: string;
+        channels: { email: string | null; whatsapp: string | null };
+        partial: boolean;
+      }>("/admin/invitations", data)).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "invitations"] }),
   });
 }
@@ -81,19 +87,60 @@ export interface BulkInviteResult {
   email: string;
   ok: boolean;
   message: string;
+  channels?: { email: string | null; whatsapp: string | null };
+  partial?: boolean;
+}
+
+export interface WhatsAppConnectionStatus {
+  configured: boolean;
+  state: string;
+  qr_data_url?: string | null;
+  session_saved?: boolean;
+  session_error?: string | null;
+  error?: string | null;
+}
+
+export function useWhatsAppConnectionStatus() {
+  return useQuery({
+    queryKey: ["admin", "invitations", "whatsapp-status"],
+    queryFn: async () => (await api.get<WhatsAppConnectionStatus>("/admin/invitations/whatsapp/status")).data,
+    refetchInterval: 5000,
+  });
 }
 
 export function useInviteBulk() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (emails: string[]) =>
+    mutationFn: async (data: {
+      recipients: Array<{ email: string; phone?: string }>;
+      channels: InvitationChannel[];
+    }) =>
       (
-        await api.post<{ total: number; sent: number; failed: number; results: BulkInviteResult[] }>(
+        await api.post<{ total: number; accepted: number; partial: number; failed: number; results: BulkInviteResult[] }>(
           "/admin/invitations/bulk",
-          { emails }
+          data
         )
       ).data,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "invitations"] }),
+  });
+}
+
+export interface ParsedInvitationUpload {
+  items: Array<{ email: string; phone: string | null }>;
+  invalid_rows: Array<{ row: number; message: string }>;
+}
+
+export function useParseInvitationUpload() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return (
+        await api.post<ParsedInvitationUpload>("/admin/invitations/bulk/parse", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      ).data;
+    },
   });
 }
 
@@ -102,12 +149,17 @@ export interface PendingInvitation {
   email: string;
   created_at?: string | null;
   expires_at?: string | null;
+  email_status?: "queued" | "sending" | "sent" | "failed" | null;
+  email_error?: string | null;
+  whatsapp_status?: "queued" | "sending" | "sent" | "failed" | null;
+  whatsapp_error?: string | null;
 }
 
 export function usePendingInvitations() {
   return useQuery({
     queryKey: ["admin", "invitations", "pending"],
     queryFn: async () => (await api.get<{ items: PendingInvitation[] }>("/admin/invitations/pending")).data.items,
+    refetchInterval: 5000,
   });
 }
 

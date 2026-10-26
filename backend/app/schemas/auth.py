@@ -1,6 +1,8 @@
 """Auth request/response schemas."""
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -41,13 +43,27 @@ class RefreshResponse(BaseModel):
 
 class InviteRequest(BaseModel):
     email: EmailStr
-    phone: str | None = Field(default=None, max_length=20)
+    phone: str | None = Field(default=None, min_length=8, max_length=24)
+    channels: list[Literal["email", "whatsapp"]] = Field(default_factory=lambda: ["email"])
     role: str = Field(default="STUDENT", max_length=20)
+
+
+class InviteRecipient(BaseModel):
+    email: EmailStr
+    phone: str | None = Field(default=None, min_length=8, max_length=24)
 
 
 class BulkInviteRequest(BaseModel):
-    emails: list[EmailStr] = Field(min_length=1, max_length=500)
+    recipients: list[InviteRecipient] | None = Field(default=None, min_length=1, max_length=500)
+    emails: list[EmailStr] | None = Field(default=None, min_length=1, max_length=500)
+    channels: list[Literal["email", "whatsapp"]] = Field(default_factory=lambda: ["email"])
     role: str = Field(default="STUDENT", max_length=20)
+
+    @model_validator(mode="after")
+    def require_one_recipient_list(self):
+        if bool(self.recipients) == bool(self.emails):
+            raise ValueError("Provide either recipients or emails")
+        return self
 
 
 class AcceptInvitationRequest(BaseModel):

@@ -63,8 +63,11 @@ Admin-only actions above may be restricted to ADMIN/SUPER_ADMIN by swapping `req
 ### Invitations & bulk import
 | Method | Path | Description |
 |---|---|---|
-| POST | `/admin/invitations` | Invite one student (same as create) |
-| POST | `/admin/invitations/bulk` | Send email invitations to a list of addresses |
+| POST | `/admin/invitations` | Send a setup link by email, WhatsApp, or both (`email`, optional `phone`, `channels`) |
+| POST | `/admin/invitations/bulk` | Send links for `recipients: [{email, phone?}]` with selected `channels`; legacy `emails` requests remain email-only |
+| POST | `/admin/invitations/bulk/parse` | Parse an uploaded CSV or XLSX into recipients for review; accepts a multipart `file` and does not send invitations |
+| GET | `/admin/invitations/whatsapp/status` | Read connection state and QR code for pairing |
+| GET | `/admin/invitations/pending` | List pending invites and WhatsApp delivery status |
 | POST | `/admin/imports/preview` | Upload `.xlsx` (≤10 MB) → row validation report + 15-minute import token |
 | POST | `/admin/imports/confirm` | Create students from a valid, unexpired preview token |
 

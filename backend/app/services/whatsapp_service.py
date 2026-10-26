@@ -1,54 +1,109 @@
 import httpx
-from app.core.logging import get_logger
+
 from app.config import settings
+from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+def _service_url() -> str | None:
+    base_url = settings.WHATSAPP_API_URL
+    if not base_url:
+        return None
+    url = base_url.strip().rstrip("/")
+    return url if url.startswith(("http://", "https://")) else f"http://{url}"
+
+
+def _headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if settings.WHATSAPP_API_TOKEN:
+        headers["Authorization"] = f"Bearer {settings.WHATSAPP_API_TOKEN}"
+    return headers
+
+
 class WhatsAppService:
     @staticmethod
-    async def send_message(phone: str, text: str) -> bool:
-        """
-        Sends a WhatsApp message via the OpenWA API.
-        Automatically formats the phone number with the `@c.us` suffix if missing.
-        """
-        if not settings.OPENWA_URL:
-            logger.warning("WhatsApp message not sent; OPENWA_URL is not configured.")
-            return False
-
+    async def _queue_message(
+        phone: str,
+        text: str,
+        *,
+        invitation_id: str | None = None,
+        expires_at=None,
+    ) -> dict | None:
+        url = _service_url()
+        if not url:
+            logger.warning("WhatsApp message not sent; WHATSAPP_API_URL is not configured.")
+            return None
         if not phone:
             logger.warning("WhatsApp message not sent; phone number is missing.")
-            return False
+            return None
 
-        # Clean phone number: remove any non-digit characters
-        clean_phone = "".join(filter(str.isdigit, phone))
-        
-        # Ensure it has the correct chat ID format
-        chat_id = clean_phone
-        if not chat_id.endswith("@c.us"):
-            chat_id = f"{chat_id}@c.us"
+        clean_phone = "".join(char for char in phone if char.isdigit())
+        if not 8 <= len(clean_phone) <= 15:
+            logger.warning("WhatsApp message not sent; phone number is not in international format.")
+            return None
 
-        payload = {
-            "chatId": chat_id,
-            "text": text,
-            "session": "default"
-        }
-        
-        headers = {"Content-Type": "application/json"}
-        if settings.OPENWA_API_KEY:
-            headers["Authorization"] = f"Bearer {settings.OPENWA_API_KEY}"
-            headers["api_key"] = settings.OPENWA_API_KEY # sometimes provided directly in header
+        payload = {"phone": clean_phone, "text": text}
+        if invitation_id:
+            payload["invitation_id"] = invitation_id
+        if expires_at:
+            payload["expires_at"] = expires_at.isoformat()
 
         try:
-            url = f"{settings.OPENWA_URL.rstrip('/')}/api/sendText"
-            async with httpx.AsyncClient() as client:
-                response = await client.post(url, json=payload, headers=headers, timeout=10.0)
-                
-                if response.status_code in (200, 201):
-                    logger.info("Successfully sent WhatsApp message to %s", clean_phone)
-                    return True
-                else:
-                    logger.error("Failed to send WhatsApp message to %s: HTTP %s %s", clean_phone, response.status_code, response.text)
-                    return False
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(
+                    f"{url}/send",
+                    json=payload,
+                    headers=_headers(),
+                )
+            if response.status_code in (200, 202):
+                result = response.json()
+                logger.info("Queued WhatsApp message for %s", clean_phone)
+                return result
+            logger.error(
+                "WhatsApp queue failed for %s: HTTP %s %s",
+                clean_phone,
+                response.status_code,
+                response.text[:300],
+            )
+            return None
         except Exception as exc:
-            logger.exception("Exception occurred while sending WhatsApp message to %s: %s", clean_phone, exc)
-            return False
+            logger.exception("Exception queueing WhatsApp message for %s: %s", clean_phone, exc)
+            return None
+
+    @staticmethod
+    async def send_message(phone: str, text: str) -> bool:
+        """Queue a WhatsApp message through the private whatsapp-web.js service."""
+        return await WhatsAppService._queue_message(phone, text) is not None
+
+    @staticmethod
+    async def queue_invitation(
+        phone: str, text: str, invitation_id: str, expires_at
+    ) -> str | None:
+        """Queue an invitation and associate delivery status with its database record."""
+        result = await WhatsAppService._queue_message(
+            phone,
+            text,
+            invitation_id=invitation_id,
+            expires_at=expires_at,
+        )
+        return result.get("job_id") if result else None
+
+    @staticmethod
+    async def connection_status() -> dict:
+        url = _service_url()
+        if not url:
+            return {"configured": False, "state": "unconfigured", "qr_data_url": None}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"{url}/status", headers=_headers())
+            response.raise_for_status()
+            return {"configured": True, **response.json()}
+        except Exception as exc:
+            logger.warning("Could not read WhatsApp connection status: %s", exc)
+            return {
+                "configured": True,
+                "state": "unavailable",
+                "qr_data_url": None,
+                "error": "Could not reach the WhatsApp service. Check that it is running and WHATSAPP_API_URL is correct.",
+            }

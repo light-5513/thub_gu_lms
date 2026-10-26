@@ -52,9 +52,9 @@ class Settings(BaseSettings):
     SMTP_FROM: str | None = None
     SMTP_USE_TLS: bool = True
 
-    # WhatsApp (OpenWA)
-    OPENWA_URL: str | None = None
-    OPENWA_API_KEY: str | None = None
+    # Private whatsapp-web.js service
+    WHATSAPP_API_URL: str | None = None
+    WHATSAPP_API_TOKEN: str | None = None
 
     # Redis / worker
     REDIS_URL: str = "redis://localhost:6379/0"

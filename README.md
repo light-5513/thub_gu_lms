@@ -9,6 +9,7 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 | Database | MongoDB Atlas (mandatory primary datastore) |
 | Jobs     | Redis + ARQ worker (email queue, bulk import emails, coding sync, leaderboard recalculation) — **optional** in monolithic mode |
 | Email    | Gmail SMTP with App Password (HTML templates + retries + delivery logs) — **optional** in monolithic mode |
+| Invitations | Email and WhatsApp links; scan a QR once to link the sender account for WhatsApp |
 
 > **New: monolithic mode.** A single `python run.py` command now serves the
 > entire app (API + built frontend) on one port. No Docker, no separate
@@ -27,6 +28,7 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 │   ├── requirements.txt
 │   └── requirements-dev.txt
 ├── frontend/             React SPA (src/, public/, Vite config)
+├── whatsapp-api/         Private WhatsApp Web client API for invitations
 ├── docs/                 Codebase knowledge graph and project guides
 ├── .env.example
 ├── Dockerfile
@@ -38,7 +40,7 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 ### Prerequisites
 
 - Python 3.10+
-- Node.js 18+ (Node 20+ recommended) — **only needed once to build the frontend**
+- Node.js 20+ — needed to build the frontend and run the WhatsApp invitation service
 - A MongoDB Atlas cluster (free M0 tier works)
 
 ### 1. Configure environment
@@ -46,8 +48,14 @@ A production-oriented LMS with two portals — **Student** and **Teacher/Admin**
 ```bash
 cp .env.example .env
 # Edit .env: set MONGODB_URI, JWT_SECRET, SECRET_KEY,
-# SMTP_USERNAME/SMTP_PASSWORD (Gmail App Password), etc.
+# SMTP_USERNAME/SMTP_PASSWORD (Gmail App Password), and WhatsApp service keys.
 ```
+
+To send invitations locally, start the Node service in `whatsapp-api/` with the
+same MongoDB connection, set `WHATSAPP_API_URL=http://localhost:10000`, a
+matching `WHATSAPP_API_TOKEN`, and a private `WHATSAPP_OUTBOX_KEY` in `.env`,
+then scan the QR shown on the Admin → Invitations page. See [Environment variables](ENVIRONMENT.md) and the
+[deployment guide](DEPLOYMENT.md) for the Render setup.
 
 `.env` is git-ignored and must never be committed.
 
