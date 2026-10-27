@@ -237,7 +237,7 @@ export function InvitationsPage() {
                 ? "WhatsApp service is unavailable or waking up. Wait a moment and try again."
                 : whatsapp.data?.state === "error"
                   ? "WhatsApp could not connect. The service will retry shortly."
-                : `WhatsApp status: ${whatsapp.data?.state || "connecting"}. Keep this page open; the QR code will appear when ready.`}
+                : `WhatsApp status: ${whatsapp.data?.state || "connecting"}${whatsapp.data?.startup_stage && whatsapp.data.startup_stage !== whatsapp.data.state ? ` (${whatsapp.data.startup_stage.replace(/_/g, " ")})` : ""}. Keep this page open; the QR code will appear when ready.`}
             {whatsapp.data?.error && <span className="mt-1 block text-xs">{whatsapp.data.error}</span>}
           </p>
         )}

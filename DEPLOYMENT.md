@@ -106,6 +106,17 @@ children left by the old process. If WhatsApp Web does not reach a QR code or
 ready state within 150 seconds, the Node process logs a startup timeout and
 restarts. Sustained memory pressure can still make WhatsApp unavailable.
 
+If the connection times out, inspect the `lms` runtime logs for `WhatsApp
+startup diagnostics`. The logged stage shows whether the client was restoring
+its MongoDB session, launching Chromium, loading WhatsApp Web, or waiting for
+authentication; the same entry includes the previous error, browser state,
+and total container memory when Linux cgroup metrics are available. Search
+runtime logs after the admin clicks **Connect WhatsApp**; build and deploy logs
+alone do not show the browser initialization. Also check Render **Events** for
+an out-of-memory restart.
+The admin connection panel also shows the current startup stage. A newly linked
+session is saved by RemoteAuth after its initial stabilization delay.
+
 When moving from an old separate `lms-whatsapp-api` or
 `lms-whatsapp-api-free` service, suspend it before deploying the combined
 container so two clients do not use the same saved session. Copy its

@@ -25,8 +25,10 @@ const mongoUri = process.env.WHATSAPP_MONGODB_URI || process.env.MONGODB_URI || 
 const databaseName = process.env.MONGODB_DATABASE || "lms";
 
 let state = "idle";
+let startupStage = "idle";
 let qrDataUrl = null;
 let lastError = null;
+let lastAttemptError = null;
 let sessionSaved = false;
 let sessionBackupError = null;
 let client;
@@ -89,11 +91,18 @@ function delay(ms) {
 class ResilientClient extends Client {
   async inject() {
     if (this.safeInjectPromise) return this.safeInjectPromise;
+    const duringStartup = state === "starting" || state === "authenticated";
+    if (duringStartup) {
+      startupStage = "injecting_whatsapp_web";
+      console.log("WhatsApp startup: injecting the WhatsApp Web client.");
+    }
     this.safeInjectPromise = (async () => {
       let lastError;
       for (let attempt = 0; attempt < 6; attempt += 1) {
         try {
-          return await super.inject();
+          const result = await super.inject();
+          if (duringStartup && state === "starting") startupStage = "waiting_for_qr_or_ready";
+          return result;
         } catch (error) {
           const message = String(error?.message || error);
           const navigationRace = /Execution context was destroyed|Cannot find context|detached Frame/i.test(message);
@@ -201,6 +210,8 @@ async function initializeWhatsAppClient() {
       attempt += 1;
       state = "error";
       lastError = String(error?.message || "WhatsApp initialization failed").slice(0, 300);
+      lastAttemptError = lastError;
+      startupStage = "retrying";
       console.error("WhatsApp initialization failed; retrying:", lastError);
       try {
         await client.destroy();
@@ -219,11 +230,56 @@ function clearStartupTimer() {
   startupTimer = null;
 }
 
+function scheduleRestart() {
+  if (restartTimer || shuttingDown) return;
+  restartTimer = setTimeout(() => {
+    if (!shuttingDown) process.exit(1);
+  }, 10000);
+}
+
+function clearRestartTimer() {
+  if (restartTimer) clearTimeout(restartTimer);
+  restartTimer = null;
+}
+
+function safePageLocation() {
+  try {
+    const pageUrl = client.pupPage?.url();
+    if (!pageUrl) return null;
+    const url = new URL(pageUrl);
+    return url.protocol === "about:" ? pageUrl : `${url.origin}${url.pathname}`;
+  } catch {
+    return null;
+  }
+}
+
+function containerMemoryMb(metric) {
+  try {
+    const bytes = Number(fs.readFileSync(`/sys/fs/cgroup/${metric}`, "utf8").trim());
+    return Number.isFinite(bytes) ? Math.round(bytes / 1048576) : null;
+  } catch {
+    return null;
+  }
+}
+
 function handleStartupTimeout() {
   if (shuttingDown || state === "qr_required" || state === "ready") return;
   startupTimedOut = true;
   state = "error";
-  lastError = `WhatsApp Web did not finish loading within ${Math.round(startupTimeoutMs / 1000)} seconds. The WhatsApp API will restart.`;
+  console.error("WhatsApp startup diagnostics:", JSON.stringify({
+    stage: startupStage,
+    saved_session: sessionSaved,
+    browser_created: Boolean(client.pupBrowser),
+    browser_connected: client.pupBrowser?.isConnected?.() ?? false,
+    chromium_pid: client.pupBrowser?.process?.()?.pid ?? null,
+    page: safePageLocation(),
+    node_rss_mb: Math.round(process.memoryUsage().rss / 1048576),
+    container_memory_mb: containerMemoryMb("memory.current"),
+    container_memory_limit_mb: containerMemoryMb("memory.max"),
+    previous_error: lastAttemptError,
+  }));
+  lastError = `WhatsApp did not connect within ${Math.round(startupTimeoutMs / 1000)} seconds while ${startupStage.replaceAll("_", " ")}. ${lastAttemptError ? `Last error: ${lastAttemptError}. ` : ""}The WhatsApp API will restart.`.slice(0, 300);
+  startupStage = "timed_out";
   console.error(lastError);
   if (client.pupBrowser) {
     void client.pupBrowser.close().catch((error) => {
@@ -231,22 +287,24 @@ function handleStartupTimeout() {
     });
   }
   // Leave the error visible for the next status poll before the supervisor restarts Node.
-  restartTimer = setTimeout(() => {
-    if (!shuttingDown) process.exit(1);
-  }, 10000);
+  scheduleRestart();
 }
 
 function requestWhatsAppInitialization() {
   if (whatsappInitializationRequested || shuttingDown) return;
   whatsappInitializationRequested = true;
   state = "starting";
+  startupStage = "starting";
   lastError = null;
+  lastAttemptError = null;
   console.log("WhatsApp browser initialization requested.");
   startupTimer = setTimeout(handleStartupTimeout, startupTimeoutMs);
   void initializeWhatsAppClient().catch((error) => {
     clearStartupTimer();
     state = "error";
+    startupStage = "error";
     lastError = String(error?.message || "WhatsApp initialization failed").slice(0, 300);
+    lastAttemptError = lastError;
     console.error("WhatsApp initialization stopped unexpectedly:", lastError);
     whatsappInitializationRequested = false;
   });
@@ -276,7 +334,7 @@ class MongoSessionStore {
 
   async sessionExists({ session }) {
     const exists = Boolean(await this.files.findOne({ filename: `${session}.zip` }, { projection: { _id: 1 } }));
-    if (exists) sessionSaved = true;
+    sessionSaved = exists;
     return exists;
   }
 
@@ -308,6 +366,47 @@ class ResilientRemoteAuth extends RemoteAuth {
     super(options);
     this.backupPromise = null;
     this.retryTimer = null;
+  }
+
+  async beforeBrowserInitialized() {
+    startupStage = "restoring_session";
+    console.log("WhatsApp startup: checking the saved session in MongoDB.");
+    await super.beforeBrowserInitialized();
+    startupStage = "launching_chromium";
+    console.log(`WhatsApp startup: session ${sessionSaved ? "restored" : "not found"}; launching Chromium.`);
+  }
+
+  async afterBrowserInitialized() {
+    await super.afterBrowserInitialized();
+    startupStage = "preparing_whatsapp_web";
+    console.log("WhatsApp startup: Chromium launched; preparing WhatsApp Web.");
+    const page = this.client.pupPage;
+    page.on("request", (request) => {
+      if (
+        request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com") &&
+        (state === "starting" || state === "authenticated") && startupStage !== "loading_whatsapp_web"
+      ) {
+        startupStage = "loading_whatsapp_web";
+        console.log("WhatsApp startup: navigating to WhatsApp Web.");
+      }
+    });
+    page.on("requestfailed", (request) => {
+      if (request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com/")) {
+        const failure = request.failure()?.errorText || "unknown error";
+        lastAttemptError = `WhatsApp Web navigation failed: ${failure}`;
+        console.warn(lastAttemptError);
+      }
+    });
+    page.on("response", (response) => {
+      if (response.request().isNavigationRequest() && response.url().startsWith("https://web.whatsapp.com")) {
+        console.log(`WhatsApp Web navigation returned HTTP ${response.status()}.`);
+        if (response.status() >= 400) lastAttemptError = `WhatsApp Web returned HTTP ${response.status()}`;
+      }
+    });
+    page.on("error", (error) => {
+      lastAttemptError = `WhatsApp browser page crashed: ${error.message}`;
+      console.error("WhatsApp browser page crashed:", error.message);
+    });
   }
 
   async storeRemoteSession(options) {
@@ -403,7 +502,9 @@ async function main() {
       qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, width: 300 });
       if (startupTimedOut) return;
       clearStartupTimer();
+      clearRestartTimer();
       state = "qr_required";
+      startupStage = "qr_required";
       lastError = null;
       console.log("WhatsApp needs pairing: scan the QR code in the LMS Invitations page.");
     } catch (error) {
@@ -414,7 +515,11 @@ async function main() {
   });
   client.on("authenticated", () => {
     if (startupTimedOut) return;
+    clearRestartTimer();
+    clearStartupTimer();
+    startupTimer = setTimeout(handleStartupTimeout, startupTimeoutMs);
     state = "authenticated";
+    startupStage = "authenticated";
     qrDataUrl = null;
     lastError = null;
     console.log("WhatsApp account authenticated.");
@@ -422,11 +527,13 @@ async function main() {
   client.on("ready", () => {
     if (startupTimedOut) return;
     clearStartupTimer();
+    clearRestartTimer();
     state = "ready";
+    startupStage = "ready";
     qrDataUrl = null;
     lastError = null;
     console.log("WhatsApp client is ready.");
-    void client.authStrategy.storeRemoteSession({ emit: true });
+    // RemoteAuth waits for the initial session to settle before saving it.
     if (!outboxWorker) {
       outboxWorker = runOutbox().catch((error) => {
         console.error("WhatsApp outbox worker stopped unexpectedly:", error);
@@ -441,16 +548,20 @@ async function main() {
   client.on("auth_failure", (message) => {
     if (startupTimedOut) return;
     state = "auth_failure";
+    startupStage = "auth_failure";
     lastError = String(message || "WhatsApp authentication failed").slice(0, 300);
     sessionSaved = false;
     console.error("WhatsApp authentication failed:", lastError);
+    scheduleRestart();
   });
   client.on("disconnected", (reason) => {
     if (startupTimedOut) return;
     state = "disconnected";
+    startupStage = "disconnected";
     lastError = String(reason || "WhatsApp disconnected").slice(0, 300);
     sessionSaved = false;
     console.warn("WhatsApp disconnected:", lastError);
+    scheduleRestart();
   });
 
   const app = express();
@@ -461,10 +572,12 @@ async function main() {
     requestWhatsAppInitialization();
     res.json({
       state,
+      startup_stage: startupStage,
       qr_data_url: qrDataUrl,
       session_saved: sessionSaved,
       session_error: sessionBackupError,
       error: lastError,
+      last_attempt_error: lastAttemptError,
     });
   });
   app.post("/send", authenticate, async (req, res) => {

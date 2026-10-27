@@ -94,6 +94,7 @@ export interface BulkInviteResult {
 export interface WhatsAppConnectionStatus {
   configured: boolean;
   state: string;
+  startup_stage?: string | null;
   qr_data_url?: string | null;
   session_saved?: boolean;
   session_error?: string | null;
