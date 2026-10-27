@@ -61,7 +61,6 @@ export function InvitationsPage() {
   const parseUpload = useParseInvitationUpload();
   const pending = usePendingInvitations();
   const revoke = useRevokeInvitation();
-  const whatsapp = useWhatsAppConnectionStatus();
 
   // single mode
   const [email, setEmail] = useState("");
@@ -69,6 +68,8 @@ export function InvitationsPage() {
   const [singleError, setSingleError] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
   const [sendWhatsApp, setSendWhatsApp] = useState(true);
+  const [connectWhatsApp, setConnectWhatsApp] = useState(false);
+  const whatsapp = useWhatsAppConnectionStatus(sendWhatsApp && connectWhatsApp);
 
   // bulk mode
   const [bulkText, setBulkText] = useState("");
@@ -127,6 +128,7 @@ export function InvitationsPage() {
       return;
     }
     setSingleError("");
+    if (sendWhatsApp) setConnectWhatsApp(true);
     try {
       const res = await invite.mutateAsync({
         email: clean,
@@ -155,6 +157,7 @@ export function InvitationsPage() {
       toast.push("error", "Reduce the list to 500 recipients or fewer before sending");
       return;
     }
+    if (sendWhatsApp) setConnectWhatsApp(true);
     try {
       const res = await bulk.mutateAsync({ recipients: parsed.valid.slice(0, 500), channels });
       setBulkResults(res.results);
@@ -178,7 +181,7 @@ export function InvitationsPage() {
       </div>
 
       <Card>
-        <CardHeader title="Delivery channels" subtitle="Choose how students receive their setup link. Both are enabled by default." />
+        <CardHeader title="Delivery channels" subtitle="Choose how students receive their setup link. Both are selected by default." />
         <div className="flex flex-wrap gap-x-6 gap-y-3">
           <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-leather-200">
             <input
@@ -201,9 +204,14 @@ export function InvitationsPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardHeader title="WhatsApp connection" subtitle="Link the school WhatsApp account once by scanning this QR code." />
-        {whatsapp.isLoading ? (
+      {sendWhatsApp && <Card>
+        <CardHeader title="WhatsApp connection" subtitle="Connect the sender account, then scan the QR code once." />
+        {!connectWhatsApp ? (
+          <div className="space-y-3">
+            <p className="text-sm text-leather-100">Connect WhatsApp when you are ready to send invitations.</p>
+            <Button type="button" size="sm" variant="secondary" onClick={() => setConnectWhatsApp(true)}>Connect WhatsApp</Button>
+          </div>
+        ) : whatsapp.isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : whatsapp.isError ? (
           <p className="text-sm text-warning-700">Could not load WhatsApp connection status. Refresh the page and try again.</p>
@@ -227,14 +235,16 @@ export function InvitationsPage() {
               ? "WhatsApp service is not configured. Set WHATSAPP_API_URL and WHATSAPP_API_TOKEN in the app environment."
               : whatsapp.data?.state === "unavailable"
                 ? "WhatsApp service is unavailable or waking up. Wait a moment and try again."
+                : whatsapp.data?.state === "error"
+                  ? "WhatsApp could not connect. The service will retry shortly."
                 : `WhatsApp status: ${whatsapp.data?.state || "connecting"}. Keep this page open; the QR code will appear when ready.`}
             {whatsapp.data?.error && <span className="mt-1 block text-xs">{whatsapp.data.error}</span>}
           </p>
         )}
-        {whatsapp.data?.state === "ready" && whatsapp.data.session_error && (
+        {connectWhatsApp && whatsapp.data?.state === "ready" && whatsapp.data.session_error && (
           <p className="mt-2 text-xs text-warning-700">WhatsApp is connected, but session backup needs attention: {whatsapp.data.session_error}</p>
         )}
-      </Card>
+      </Card>}
 
       {/* Mode switch */}
       <div className="neo-inset-surface flex gap-1 rounded-full p-1">

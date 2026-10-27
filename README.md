@@ -56,7 +56,7 @@ cp .env.example .env
 To send invitations locally, start the Node service in `whatsapp-api/` with the
 same MongoDB connection, set `WHATSAPP_API_URL=http://localhost:10000`, a
 matching `WHATSAPP_API_TOKEN`, and a private `WHATSAPP_OUTBOX_KEY` in `.env`,
-then scan the QR shown on the Admin → Invitations page. See [Environment variables](ENVIRONMENT.md) and the
+then click **Connect WhatsApp** on Admin → Invitations and scan the QR. See [Environment variables](ENVIRONMENT.md) and the
 [deployment guide](DEPLOYMENT.md) for the Render setup.
 
 `.env` is git-ignored and must never be committed.

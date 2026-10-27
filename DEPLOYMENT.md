@@ -81,7 +81,7 @@ MONGODB_URI='mongodb+srv://...' MONGODB_DATABASE=lms WHATSAPP_API_TOKEN=local-se
 
 Set `WHATSAPP_API_URL=http://localhost:10000` and
 `WHATSAPP_API_TOKEN=local-secret` in the LMS environment. Open **Admin →
-Invitations**, scan the displayed QR from WhatsApp → Linked devices, and wait
+Invitations**, click **Connect WhatsApp**, scan the displayed QR from WhatsApp → Linked devices, and wait
 for the connection status to show ready. Enter each recipient's phone number
 in international format.
 
@@ -91,17 +91,20 @@ the container sets `WHATSAPP_API_URL` automatically. Both processes share the
 LMS MongoDB settings; the WhatsApp session is stored in MongoDB GridFS, so it
 does not need a Render disk. The container uses the LMS app secret to derive
 stable internal API and outbox keys if Render has not supplied explicit
-WhatsApp keys. The Node API starts with the LMS, while Chromium starts only
-when the Invitations page checks WhatsApp status or a WhatsApp invitation is
-queued. This avoids browser startup memory use during normal LMS login.
+WhatsApp keys. The Node API starts with the LMS. Both delivery channels are
+selected by default on the Invitations page, but Chromium starts only when an
+admin clicks **Connect WhatsApp** or queues a WhatsApp invitation. Opening the
+page or sending an email-only invitation does not start the browser.
 
 Render Free services sleep after 15 minutes without inbound requests. When the
 LMS wakes, the container starts both APIs. WhatsApp reconnects from its
 MongoDB session when its status is first requested; it may take about a minute
 and may require scanning a new QR. Free compute is limited to 512 MB, so using
 the Python app and Chromium together may still exceed available memory. The
-container restarts the WhatsApp process if it exits, but sustained memory
-pressure can still make WhatsApp unavailable.
+container restarts the WhatsApp process if it exits and terminates any Chromium
+children left by the old process. If WhatsApp Web does not reach a QR code or
+ready state within 150 seconds, the Node process logs a startup timeout and
+restarts. Sustained memory pressure can still make WhatsApp unavailable.
 
 When moving from an old separate `lms-whatsapp-api` or
 `lms-whatsapp-api-free` service, suspend it before deploying the combined

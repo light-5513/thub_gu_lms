@@ -20,6 +20,7 @@ const dataPath = process.env.WHATSAPP_DATA_PATH || "/tmp/wwebjs_auth";
 const sessionName = process.env.WHATSAPP_SESSION_NAME || "lms-invitations";
 const backupSyncIntervalMs = Number(process.env.WHATSAPP_BACKUP_INTERVAL_MS || 300000);
 const sendIntervalMs = Number(process.env.WHATSAPP_SEND_INTERVAL_MS || 2000);
+const startupTimeoutMs = Number(process.env.WHATSAPP_START_TIMEOUT_MS || 150000);
 const mongoUri = process.env.WHATSAPP_MONGODB_URI || process.env.MONGODB_URI || "";
 const databaseName = process.env.MONGODB_DATABASE || "lms";
 
@@ -35,6 +36,9 @@ let invitations;
 let outboxWorker;
 let shuttingDown = false;
 let whatsappInitializationRequested = false;
+let startupTimedOut = false;
+let startupTimer;
+let restartTimer;
 
 function requireConfig() {
   const missing = [];
@@ -42,6 +46,9 @@ function requireConfig() {
   if (!outboxSecret) missing.push("WHATSAPP_OUTBOX_KEY");
   if (!mongoUri) missing.push("MONGODB_URI");
   if (missing.length) throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  if (!Number.isFinite(startupTimeoutMs) || startupTimeoutMs < 30000) {
+    throw new Error("WHATSAPP_START_TIMEOUT_MS must be at least 30000 milliseconds");
+  }
   if (!/^[-_\w]+$/.test(sessionName)) {
     throw new Error("WHATSAPP_SESSION_NAME may contain only letters, numbers, underscores, and hyphens");
   }
@@ -184,12 +191,13 @@ async function runOutbox() {
 
 async function initializeWhatsAppClient() {
   let attempt = 0;
-  while (!shuttingDown) {
+  while (!shuttingDown && !startupTimedOut) {
     try {
       state = "starting";
       await client.initialize();
       return;
     } catch (error) {
+      if (startupTimedOut || shuttingDown) return;
       attempt += 1;
       state = "error";
       lastError = String(error?.message || "WhatsApp initialization failed").slice(0, 300);
@@ -206,13 +214,37 @@ async function initializeWhatsAppClient() {
   }
 }
 
+function clearStartupTimer() {
+  if (startupTimer) clearTimeout(startupTimer);
+  startupTimer = null;
+}
+
+function handleStartupTimeout() {
+  if (shuttingDown || state === "qr_required" || state === "ready") return;
+  startupTimedOut = true;
+  state = "error";
+  lastError = `WhatsApp Web did not finish loading within ${Math.round(startupTimeoutMs / 1000)} seconds. The WhatsApp API will restart.`;
+  console.error(lastError);
+  if (client.pupBrowser) {
+    void client.pupBrowser.close().catch((error) => {
+      console.warn("Could not close the stalled WhatsApp browser:", error.message);
+    });
+  }
+  // Leave the error visible for the next status poll before the supervisor restarts Node.
+  restartTimer = setTimeout(() => {
+    if (!shuttingDown) process.exit(1);
+  }, 10000);
+}
+
 function requestWhatsAppInitialization() {
   if (whatsappInitializationRequested || shuttingDown) return;
   whatsappInitializationRequested = true;
   state = "starting";
   lastError = null;
   console.log("WhatsApp browser initialization requested.");
+  startupTimer = setTimeout(handleStartupTimeout, startupTimeoutMs);
   void initializeWhatsAppClient().catch((error) => {
+    clearStartupTimer();
     state = "error";
     lastError = String(error?.message || "WhatsApp initialization failed").slice(0, 300);
     console.error("WhatsApp initialization stopped unexpectedly:", lastError);
@@ -366,8 +398,11 @@ async function main() {
   });
 
   client.on("qr", async (qr) => {
+    if (startupTimedOut) return;
     try {
       qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, width: 300 });
+      if (startupTimedOut) return;
+      clearStartupTimer();
       state = "qr_required";
       lastError = null;
       console.log("WhatsApp needs pairing: scan the QR code in the LMS Invitations page.");
@@ -378,12 +413,15 @@ async function main() {
     }
   });
   client.on("authenticated", () => {
+    if (startupTimedOut) return;
     state = "authenticated";
     qrDataUrl = null;
     lastError = null;
     console.log("WhatsApp account authenticated.");
   });
   client.on("ready", () => {
+    if (startupTimedOut) return;
+    clearStartupTimer();
     state = "ready";
     qrDataUrl = null;
     lastError = null;
@@ -401,12 +439,14 @@ async function main() {
     console.log("WhatsApp session backup saved to MongoDB.");
   });
   client.on("auth_failure", (message) => {
+    if (startupTimedOut) return;
     state = "auth_failure";
     lastError = String(message || "WhatsApp authentication failed").slice(0, 300);
     sessionSaved = false;
     console.error("WhatsApp authentication failed:", lastError);
   });
   client.on("disconnected", (reason) => {
+    if (startupTimedOut) return;
     state = "disconnected";
     lastError = String(reason || "WhatsApp disconnected").slice(0, 300);
     sessionSaved = false;
@@ -472,6 +512,8 @@ main().catch((error) => {
 
 async function shutdown() {
   shuttingDown = true;
+  clearStartupTimer();
+  if (restartTimer) clearTimeout(restartTimer);
   try {
     if (client?.authStrategy) await client.authStrategy.destroy();
     if (client) await client.destroy();

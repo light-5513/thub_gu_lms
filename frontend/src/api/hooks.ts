@@ -100,11 +100,12 @@ export interface WhatsAppConnectionStatus {
   error?: string | null;
 }
 
-export function useWhatsAppConnectionStatus() {
+export function useWhatsAppConnectionStatus(enabled: boolean) {
   return useQuery({
     queryKey: ["admin", "invitations", "whatsapp-status"],
     queryFn: async () => (await api.get<WhatsAppConnectionStatus>("/admin/invitations/whatsapp/status")).data,
-    refetchInterval: 5000,
+    enabled,
+    refetchInterval: enabled ? 5000 : false,
   });
 }
 

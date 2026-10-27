@@ -1,6 +1,6 @@
 {
   "title": "LMS source-code knowledge graph",
-  "generated": "2026-10-26",
+  "generated": "2026-10-27",
   "scope": {
     "included": "First-party source, tests, email templates, configuration, dependency manifests, and project documentation.",
     "excluded": [
@@ -16,9 +16,9 @@
     "method": "Static Python AST and TypeScript/JavaScript import, route, hook, and database-usage scans plus code-grounded domain relationships."
   },
   "statistics": {
-    "files": 183,
-    "nodes": 444,
-    "edges": 1548,
+    "files": 184,
+    "nodes": 446,
+    "edges": 1558,
     "api_endpoints": 73,
     "mongo_collections": 27
   },
@@ -944,19 +944,14 @@
       "label": "MongoDB"
     },
     {
-      "id": "system:whatsapp_webjs",
-      "type": "external_service",
-      "label": "Private whatsapp-web.js Node API"
-    },
-    {
       "id": "system:redis",
       "type": "external_service",
       "label": "Redis"
     },
     {
-      "id": "system:whatsapp_webjs",
+      "id": "system:whatsapp_web",
       "type": "external_service",
-      "label": "Private whatsapp-web.js Node API"
+      "label": "WhatsApp Web"
     },
     {
       "id": "collection:academic_years",
@@ -1724,6 +1719,13 @@
       "source": "frontend/src/api/hooks.ts"
     },
     {
+      "id": "hook:useWhatsAppConnectionStatus",
+      "type": "query_hook",
+      "label": "useWhatsAppConnectionStatus",
+      "source": "frontend/src/api/hooks.ts",
+      "detail": "Polls after the admin clicks Connect WhatsApp or sends a WhatsApp invitation."
+    },
+    {
       "id": "system:arq",
       "type": "runtime",
       "label": "ARQ worker"
@@ -1737,6 +1739,18 @@
       "id": "system:react",
       "type": "runtime",
       "label": "React SPA"
+    },
+    {
+      "id": "system:whatsapp_webjs",
+      "type": "runtime",
+      "label": "Embedded Node.js WhatsApp API (whatsapp-web.js)"
+    },
+    {
+      "id": "file:container_start.py",
+      "type": "source_file",
+      "label": "container_start.py",
+      "path": "container_start.py",
+      "language": "py"
     },
     {
       "id": "file:backend/__init__.py",
@@ -12607,9 +12621,9 @@
     {
       "source": "file:backend/app/services/whatsapp_service.py",
       "target": "system:whatsapp_webjs",
-      "relation": "calls_private_http_api",
+      "relation": "calls_internal_http_api",
       "evidence": "backend/app/services/whatsapp_service.py",
-      "detail": "POST /send and GET /status"
+      "detail": "POST /send and GET /status; loopback URL inside the Render container."
     },
     {
       "source": "file:whatsapp-api/server.js",
@@ -12730,6 +12744,75 @@
       "target": "hook:useParseInvitationUpload",
       "relation": "uses_hook",
       "evidence": "frontend/src/features/admin/InvitationsPage.tsx"
+    },
+    {
+      "source": "file:container_start.py",
+      "target": "file:run.py",
+      "relation": "starts_lms_entrypoint",
+      "evidence": "container_start.py",
+      "detail": "Starts the FastAPI entry point as a supervised child process."
+    },
+    {
+      "source": "file:container_start.py",
+      "target": "file:whatsapp-api/server.js",
+      "relation": "starts_and_restarts",
+      "evidence": "container_start.py",
+      "detail": "Starts the Node API beside FastAPI; restarts it and terminates old Chromium children if it exits."
+    },
+    {
+      "source": "file:container_start.py",
+      "target": "system:whatsapp_webjs",
+      "relation": "configures_and_supervises",
+      "evidence": "container_start.py",
+      "detail": "Sets the loopback URL, internal token, and port, then supervises the Node process."
+    },
+    {
+      "source": "file:Dockerfile",
+      "target": "file:container_start.py",
+      "relation": "copies_and_runs",
+      "evidence": "Dockerfile",
+      "detail": "Copies the supervisor script and uses it as the container command."
+    },
+    {
+      "source": "file:render.yaml",
+      "target": "system:lms",
+      "relation": "configures_free_docker_service",
+      "evidence": "render.yaml",
+      "detail": "Defines one Free Docker web service; WhatsApp runs inside that service."
+    },
+    {
+      "source": "system:lms",
+      "target": "system:whatsapp_webjs",
+      "relation": "starts_alongside",
+      "evidence": "container_start.py; render.yaml",
+      "detail": "The Node API starts in the same Render container as the LMS."
+    },
+    {
+      "source": "system:whatsapp_webjs",
+      "target": "system:whatsapp_web",
+      "relation": "automates",
+      "evidence": "whatsapp-api/server.js",
+      "detail": "Uses whatsapp-web.js and on-demand Puppeteer Chromium to connect to WhatsApp Web."
+    },
+    {
+      "source": "file:frontend/src/api/hooks.ts",
+      "target": "hook:useWhatsAppConnectionStatus",
+      "relation": "defines",
+      "evidence": "frontend/src/api/hooks.ts"
+    },
+    {
+      "source": "file:frontend/src/features/admin/InvitationsPage.tsx",
+      "target": "hook:useWhatsAppConnectionStatus",
+      "relation": "uses_hook",
+      "evidence": "frontend/src/features/admin/InvitationsPage.tsx",
+      "detail": "Enabled only after the admin requests a WhatsApp connection."
+    },
+    {
+      "source": "hook:useWhatsAppConnectionStatus",
+      "target": "endpoint:GET /api/admin/invitations/whatsapp/status",
+      "relation": "calls_endpoint",
+      "evidence": "frontend/src/api/hooks.ts",
+      "detail": "GET /admin/invitations/whatsapp/status every 5 seconds while enabled."
     }
   ],
   "format": "Directed property graph; nodes use id/type/label and edges use source/target/relation."

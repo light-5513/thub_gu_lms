@@ -52,7 +52,7 @@ If unset, emails are skipped and logged as failed (`email_logs`) — flows still
 
 ## WhatsApp invitations
 
-Invitations can be sent by email, WhatsApp, or both. The Render Docker container starts the Node service in `whatsapp-api/` alongside the LMS API. It runs `whatsapp-web.js`, uses an internal loopback URL, and stores its linked-device session in MongoDB GridFS. The Node API starts with the LMS; Chromium is initialized when the Invitations page checks WhatsApp status or a WhatsApp invitation is queued. Locally, you can run the Node service separately. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
+Invitations can be sent by email, WhatsApp, or both. The Render Docker container starts the Node service in `whatsapp-api/` alongside the LMS API. It runs `whatsapp-web.js`, uses an internal loopback URL, and stores its linked-device session in MongoDB GridFS. The Node API starts with the LMS; both channels are selected by default in Invitations, and Chromium is initialized when an admin clicks **Connect WhatsApp** or queues a WhatsApp invitation. Locally, you can run the Node service separately. Email uses the existing SMTP/Resend configuration and worker queue. Delivery status for both channels is saved on the invitation record.
 
 | Variable | Example | Purpose |
 |---|---|---|
@@ -60,9 +60,10 @@ Invitations can be sent by email, WhatsApp, or both. The Render Docker container
 | `WHATSAPP_API_PORT` | `10001` | Internal WhatsApp API port used by the combined Render container |
 | `WHATSAPP_API_TOKEN` | generated secret | Authenticates requests from the LMS API to the WhatsApp service |
 | `WHATSAPP_OUTBOX_KEY` | private random secret | Encrypts invitation links while they wait in the Node service's MongoDB outbox |
+| `WHATSAPP_START_TIMEOUT_MS` | `150000` | Maximum wait for the first WhatsApp QR code or ready state before restarting the embedded Node API |
 | `WHATSAPP_MONGODB_URI` | optional | Node-specific MongoDB URI override; useful when Windows Node cannot resolve the Atlas `mongodb+srv` record |
 
-For local use, start the Node service with the same `MONGODB_URI` and `MONGODB_DATABASE` as the LMS, then set all three variables above. Open **Admin → Invitations** and scan the QR code with the WhatsApp account that should send the links. The page reports when the client is ready. Use international phone numbers with country codes, such as `+919876543210`.
+For local use, start the Node service with the same `MONGODB_URI` and `MONGODB_DATABASE` as the LMS, then set all three variables above. Open **Admin → Invitations**, click **Connect WhatsApp**, and scan the QR code with the WhatsApp account that should send the links. The page reports when the client is ready. Use international phone numbers with country codes, such as `+919876543210`.
 
 The linked-device session is sensitive and is stored in the configured MongoDB database. The `whatsapp-web.js` project describes itself as an unofficial WhatsApp Web client; WhatsApp may change the web protocol or restrict accounts using unofficial clients.
 

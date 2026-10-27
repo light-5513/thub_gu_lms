@@ -1,6 +1,6 @@
 # LMS codebase knowledge graph
 
-This graph is a structural snapshot generated on 2026-10-26. It links browser routes, API endpoints, services, repositories, MongoDB collections, background jobs, external systems, and tests. The accompanying [`knowledge-graph.json`](knowledge-graph.json) records **183 in-scope files, 444 nodes, and 1,548 edges**, including 73 API endpoints and 27 MongoDB collections. Its edges include statically derived imports, route registration, feature-to-hook use, test coverage links, and data-store access alongside the domain relationships below.
+This graph is a structural snapshot updated on 2026-10-27. It links browser routes, API endpoints, services, repositories, MongoDB collections, background jobs, external systems, and tests. The accompanying [`knowledge-graph.json`](knowledge-graph.json) records **184 in-scope files, 446 nodes, and 1,558 edges**, including 73 API endpoints and 27 MongoDB collections. Its edges include statically derived imports, route registration, feature-to-hook use, test coverage links, and data-store access alongside the domain relationships below.
 
 ## System graph
 
@@ -16,19 +16,24 @@ flowchart LR
     Pages --> Hooks --> Client
   end
 
-  subgraph API[FastAPI application]
-    Mount[FastAPI app and SPA static serving]
-    Router[/api router aggregation/]
-    Middleware[Request ID and security headers]
-    AuthZ[JWT and role dependencies]
-    Routes[Auth, student, staff, public, and health routes]
-    Services[Business services]
-    Repos[Mongo repositories]
-    Mount --> Router --> Middleware --> Routes
-    Routes --> AuthZ
-    Routes --> Services
-    Services --> Repos
-    Services -. direct database access in several flows .-> DB
+  subgraph Render[Single Render Free Docker web service]
+    Supervisor[container_start.py process supervisor]
+    subgraph API[FastAPI application]
+      Mount[FastAPI app and SPA static serving]
+      Router[/api router aggregation/]
+      Middleware[Request ID and security headers]
+      AuthZ[JWT and role dependencies]
+      Routes[Auth, student, staff, public, and health routes]
+      Services[Business services]
+      Repos[Mongo repositories]
+      Mount --> Router --> Middleware --> Routes
+      Routes --> AuthZ
+      Routes --> Services
+      Services --> Repos
+      Services -. direct database access in several flows .-> DB
+    end
+    WhatsApp[Embedded Node.js whatsapp-web.js API]
+    Chromium[On-demand Puppeteer Chromium]
   end
 
   Client -->|HTTP, cookies, JSON| Mount
@@ -45,12 +50,16 @@ flowchart LR
   Services -->|HTTP adapters| Platforms[LeetCode, Codeforces, CodeChef, AtCoder, GitHub, GeeksForGeeks]
   Services --> Mail[SMTP or Resend email]
   Mail --> Templates[HTML email templates]
-  Services -->|HTTP queue request| WhatsApp[Private Node.js whatsapp-web.js API]
+  WhatsAppWeb[WhatsApp Web]
+  Supervisor -->|starts| Mount
+  Supervisor -->|starts and restarts| WhatsApp
+  Services -->|internal loopback HTTP| WhatsApp
   WhatsApp -->|RemoteAuth session and encrypted outbox| DB
-  WhatsApp -->|Puppeteer Chromium session| Web[WhatsApp Web]
+  WhatsApp -->|first status or send request| Chromium
+  Chromium --> WhatsAppWeb
 ```
 
-The principal source for this graph is `backend/app/main.py`, which initializes the FastAPI lifespan and serves `frontend/dist` when it exists. `run.py` starts the app. In development Vite can serve the React application separately and proxy `/api` to FastAPI. MongoDB is the primary application store; Redis is used for durable jobs and distributed rate limiting, with in-process fallbacks in development. The WhatsApp client runs as a separate private Node service and persists its session and message outbox in MongoDB.
+The principal source for this graph is `backend/app/main.py`, which initializes the FastAPI lifespan and serves `frontend/dist` when it exists. In Render, `container_start.py` starts FastAPI and the Node WhatsApp API as processes in the same Docker web service and restarts the Node process if it exits; `run.py` is the FastAPI entry point. The Node API listens on loopback port 10001, with its URL and internal keys configured by the supervisor. Both delivery channels are selected by default in Invitations; clicking **Connect WhatsApp** starts status polling and lazily launches Chromium, as does queueing a WhatsApp invitation. Ordinary LMS startup, opening Invitations, and email-only invites do not launch the browser. In development Vite can serve the React application separately and proxy `/api` to FastAPI. MongoDB is the primary application store; Redis is used for durable jobs and distributed rate limiting, with in-process fallbacks in development. The WhatsApp session and encrypted message outbox persist in MongoDB.
 
 The invitation bulk-upload parser accepts CSV and XLSX files, validates and deduplicates recipient rows, and returns them for review before the existing bulk-send endpoint is called.
 
@@ -144,11 +153,11 @@ flowchart LR
   Invitation --> Student
   Invitation --> Audit
   Invitation -->|queue secure setup link| WAService[WhatsAppService]
-  WAService -->|private HTTP| NodeAPI[whatsapp-web.js Node API]
+  WAService -->|internal loopback HTTP| NodeAPI[Embedded whatsapp-web.js Node API]
   NodeAPI --> Outbox[(whatsapp_outbox)]
   NodeAPI -->|sent or failed status| Invites
   NodeAPI --> Session[(WhatsApp session GridFS)]
-  NodeAPI -->|Puppeteer client| WhatsAppWeb[WhatsApp Web]
+  NodeAPI -->|lazy-started Puppeteer client| WhatsAppWeb[WhatsApp Web]
   Auth -->|current user and roles| Guards[core/deps.py]
   Guards --> Routes[Protected API routes]
 ```
@@ -161,13 +170,13 @@ The JSON graph includes a node for every in-scope source, test, configuration, t
 
 | Area | Key source paths | Responsibility |
 |---|---|---|
-| App and settings | `run.py`, `backend/app/main.py`, `backend/app/config.py` | Start the API, choose settings, serve the built SPA, and manage lifecycle |
+| App and settings | `container_start.py`, `run.py`, `backend/app/main.py`, `backend/app/config.py` | Supervise Render processes, start the API, choose settings, serve the built SPA, and manage lifecycle |
 | API boundary | `backend/app/api/router.py`, `backend/app/api/v1/` | Public contact and health endpoints; auth and student endpoints; admin/staff endpoints for students, invitations, imports, classes, batches, analytics, reports, coding sync, settings, and audit logs |
 | Identity and safety | `backend/app/core/`, `backend/app/middleware/` | Password/token handling, role checks, throttling, structured secret-scrubbed logs, errors, request IDs, and security headers |
 | Business logic | `backend/app/services/` | Account lifecycle, attendance, streaks, scoring, leaderboards, coding sync and daily activity, batch monitoring, settings, analytics, reports, imports, invitations, auditing, email, and WhatsApp |
 | Data access | `backend/app/repositories/`, `backend/app/database/`, `backend/app/models/`, `backend/app/schemas/` | MongoDB queries and indexes, optional Redis queue/heartbeat, shared enums, and request/response models |
 | Integrations and worker | `backend/app/integrations/`, `backend/app/workers/`, `backend/app/templates/email/` | External coding-platform adapters, ARQ task definitions, and email templates |
-| WhatsApp service | `backend/app/services/whatsapp_service.py`, `whatsapp-api/`, `render.yaml` | Authenticated private HTTP API, encrypted MongoDB outbox, WhatsApp Web session, and Render private service |
+| WhatsApp service | `container_start.py`, `backend/app/services/whatsapp_service.py`, `whatsapp-api/`, root `Dockerfile`, `render.yaml` | Embedded Node API on loopback, lazily launched Chromium client, encrypted MongoDB outbox, and GridFS session in the same Render web service as the LMS |
 | Frontend | `frontend/src/routes.tsx`, `features/`, `api/`, `context/`, `layouts/`, `components/`, `types/` | Role-aware SPA routes and pages, API/query layer, session state, shared UI, and domain types |
 | Operations | `Dockerfile`, `render.yaml`, `backend/requirements*.txt`, `backend/pytest.ini`, frontend manifests and configs | Build, deploy, and dependency configuration |
 | Tests | `backend/tests/` | Authentication, security, imports, platform adapters, streaks, scoring, reports, and logging behavior using a mock Mongo client where applicable |
@@ -243,6 +252,7 @@ Important reference fields visible in the queries and writes include `students.u
 2. The architecture guide describes repositories as the only code that talks to MongoDB. Several API handlers and services also query MongoDB directly; the graph marks those direct data links.
 3. GeeksForGeeks uses an undocumented public profile endpoint and is included in the all-platform sync. HackerRank and HackerEarth are registered for profile metadata but their adapters are not configured and the all-platform sweep skips them.
 4. Batch monitoring reports the current batch membership for a selected date range. Attendance percentages use saved statuses; pending classes and unmarked records remain separate, and estimated coding activity is excluded.
+5. The Render root Dockerfile runs `container_start.py`, which starts the LMS and embedded WhatsApp API together. Clicking **Connect WhatsApp** requests status and initializes Puppeteer Chromium; opening Invitations and email-only invitations do not. A 150-second startup deadline restarts a stalled Node process and its Chromium children.
 
 ## Scope and method
 

@@ -33,13 +33,17 @@ def ensure_internal_secret(env: dict[str, str], key: str, purpose: bytes) -> Non
     print(f"{key} is unset; derived a stable internal key from the app secret.", flush=True)
 
 
+def signal_process_group(process: subprocess.Popen, signum: int) -> None:
+    """Signal Chromium children even when their Node parent has already exited."""
+    try:
+        os.killpg(process.pid, signum)
+    except ProcessLookupError:
+        pass
+
+
 def stop_processes(processes: list[tuple[str, subprocess.Popen]]) -> None:
     for _name, process in processes:
-        if process.poll() is None:
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+        signal_process_group(process, signal.SIGTERM)
 
     deadline = time.monotonic() + SHUTDOWN_TIMEOUT_SECONDS
     for _name, process in processes:
@@ -48,11 +52,12 @@ def stop_processes(processes: list[tuple[str, subprocess.Popen]]) -> None:
             try:
                 process.wait(timeout=remaining)
             except subprocess.TimeoutExpired:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                process.wait()
+                pass
+
+    for _name, process in processes:
+        signal_process_group(process, signal.SIGKILL)
+        if process.poll() is None:
+            process.wait()
 
 
 def main() -> int:
@@ -112,6 +117,9 @@ def main() -> int:
                     f"restarting it in {WHATSAPP_RESTART_DELAY_SECONDS} seconds.",
                     flush=True,
                 )
+                signal_process_group(whatsapp, signal.SIGTERM)
+                time.sleep(1)
+                signal_process_group(whatsapp, signal.SIGKILL)
                 time.sleep(WHATSAPP_RESTART_DELAY_SECONDS)
                 if not shutdown_requested:
                     processes = [
