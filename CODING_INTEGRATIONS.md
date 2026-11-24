@@ -23,7 +23,7 @@ class CodingPlatformAdapter:
 | Platform | API used | Official? | Auth | Notes |
 |---|---|---|---|---|
 | **Codeforces** | `codeforces.com/api/user.info` + `user.status` | ✅ official | none | ~1 req/sec per IP; solved counts computed from unique accepted problems |
-| **GitHub** | REST `/users/{u}` + `/users/{u}/events` | ✅ official | optional PAT | Without `GITHUB_API_TOKEN`: 60 req/hr core limit. With token: 5,000/hr |
+| **GitHub** | REST `/users/{u}`, plus the GraphQL contribution calendar (with a token) or REST `/users/{u}/events` (without) | ✅ official | PAT recommended | With `GITHUB_API_TOKEN`: contribution calendar and 5,000 req/hr. Without a token, or if GitHub rejects it: 60 req/hr and the public events feed |
 | **LeetCode** | `leetcode.com/graphql` (public query endpoint) | ❌ unofficial | none | Public profiles only; can change without notice |
 | **CodeChef** | Profile page HTML scrape of embedded rating data | ❌ unofficial | none | No public API exists; parser fails gracefully if layout changes |
 | **AtCoder** | kenkoooo AtCoder Problems API + `atcoder.jp/history/json` | ❌ community | none | AC count + rating history |
@@ -44,7 +44,7 @@ Current totals remain separate by platform in `coding_statistics`. Daily rows ar
 | CodeChef | Solved total, current/peak rating, stars, global/country rank and rating-history count | Increase in solved total detected between syncs | Not the exact solve date; run this sync daily for a daily estimate |
 | AtCoder | Accepted total/rank, current/peak rating and rated contest count | Unique accepted problems, accepted submissions, or submissions | Last 365 days, capped at 500 submissions by the community API |
 | GeeksforGeeks | Solved total, score, monthly score, current/longest streak and articles | Increase in solved total detected between syncs | Not the exact solve date; run this sync daily for a daily estimate |
-| GitHub | Public repositories, followers/following, gists, recent commits, pushes, pull requests and public events | Public commits, pushes, pull requests or public events | Public events API returns at most 300 recent events; private contributions are not included |
+| GitHub | Public repositories, followers/following and gists. With a token: last-year contributions, commits, pull requests, issues, reviews and repositories created. Without one: recent public pushes, pull requests and events | Contributions (with a token) or public pushes (without) | The calendar covers the last year, matching the student's profile; private work appears only if the student shares private contributions. The public events feed returns at most 300 recent events and no longer lists the commits inside a push, so without a token pushes are counted instead of commits |
 | HackerRank / HackerEarth | No fetched stats | Not available | No usable unauthenticated public API is configured |
 
 Daily challenge counts use each platform's accepted-problem records where available. CodeChef and GeeksforGeeks provide only totals, so the app records the increase between syncs on the day of the later sync; those dates are estimates, not source-provided solve timestamps. The UI labels LeetCode as submissions and GitHub as public activity so neither appears as problems solved. The admin per-student report and student Coding Stats page use the same activity endpoint and retain the soft neumorphic portal styling.

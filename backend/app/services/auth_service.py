@@ -1,6 +1,7 @@
 """Authentication service: login, refresh, password flows, token invalidation."""
 
 from datetime import datetime, timezone
+from bson import ObjectId
 
 from app.core import security
 from app.core.errors import AppError, AuthError, ConflictError, NotFoundError
@@ -82,7 +83,10 @@ class AuthService:
         payload = security.decode_token(refresh_token)
         if not payload or payload.get("type") != "refresh":
             return None
-        user = await self.users.get_by_id(payload["sub"])
+        user_id = payload.get("sub")
+        if not isinstance(user_id, str) or not ObjectId.is_valid(user_id):
+            return None
+        user = await self.users.get_by_id(user_id)
         if not user or not user.get("is_active", True):
             return None
         if int(payload.get("ver", 0)) != int(user.get("token_version", 0)):

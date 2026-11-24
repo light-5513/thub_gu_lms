@@ -76,6 +76,17 @@ class CodingSyncService:
         return job
 
     async def run_sync(self, job_id: str, platform: str) -> None:
+        try:
+            await self._run_sync(job_id, platform)
+        except Exception:
+            logger.exception("Coding sync job %s could not finish", job_id)
+            await self.jobs.update_progress(
+                job_id,
+                error_summary=[{"message": "Synchronization could not finish. Please retry."}],
+            )
+            await self.jobs.finish_job(job_id, JobStatus.FAILED.value)
+
+    async def _run_sync(self, job_id: str, platform: str) -> None:
         started = time.time()
         await self.jobs.update_progress(
             job_id,
@@ -117,6 +128,9 @@ class CodingSyncService:
                     message = None
                     try:
                         stats = await adapter.get_stats(username)
+                        current_profile = await self.profiles.get_profile(student_id, plat)
+                        if not current_profile or current_profile.get("username") != username:
+                            raise ValueError("Profile changed during synchronization. Run a fresh sync.")
                         daily_activity = stats.pop("_daily_activity", [])
                         activity_metadata = stats.pop("_activity_metadata", {})
                         previous_snapshot = await self.profiles.get_statistics(
@@ -202,7 +216,6 @@ class CodingSyncService:
                                 activity_metadata["note"] = (
                                     f"{activity_metadata.get('note', '')} The first sync establishes a baseline; the next sync can begin tracking changes."
                                 ).strip()
-                        await self.profiles.upsert_profile(student_id, plat, username)
                         activity_metadata["activity_timezone"] = activity_timezone
                         await self.profiles.save_statistics(
                             student_id,
@@ -226,9 +239,11 @@ class CodingSyncService:
                         failed += 1
                         error_messages.append(message)
                         try:
-                            await self.profiles.mark_sync_status(
-                                student_id, plat, "failed", message
-                            )
+                            current_profile = await self.profiles.get_profile(student_id, plat)
+                            if current_profile and current_profile.get("username") == username:
+                                await self.profiles.mark_sync_status(
+                                    student_id, plat, "failed", message
+                                )
                         except Exception:
                             pass
                     try:

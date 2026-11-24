@@ -9,6 +9,8 @@ from app.core.errors import AppError, ConflictError, NotFoundError
 from app.integrations import available_platforms
 from app.integrations.activity_time import get_activity_timezone
 from app.repositories.coding import CodingProfileRepository
+from app.schemas.student import SelfProfileUpdate
+from app.schemas.coding import CodingProfileInput
 from app.services.leaderboard_service import LeaderboardService
 from app.services.batch_service import BatchService
 from app.services.coding_activity_service import (
@@ -131,28 +133,16 @@ async def get_profile(user=Depends(require_student), db=Depends(get_db)):
 
 @router.put("/profile")
 async def update_profile(
-    payload: dict, user=Depends(require_student), db=Depends(get_db)
+    payload: SelfProfileUpdate, user=Depends(require_student), db=Depends(get_db)
 ):
     """Students may edit everything except their email."""
     student = await _require_student_doc(db, user)
-    allowed = {
-        "first_name",
-        "last_name",
-        "phone",
-        "roll_number",
-        "course",
-        "branch",
-        "section",
-    }
     updates = {
-        k: (v.strip() if isinstance(v, str) else v)
-        for k, v in payload.items()
-        if k in allowed
+        k: v for k, v in payload.model_dump(exclude_unset=True).items()
+        if v is not None or k == "phone"
     }
     if not updates:
         raise AppError("No editable fields provided", 400)
-    if "email" in payload or "user_id" in payload:
-        raise AppError("Email cannot be changed", 400)
     if "roll_number" in updates:
         existing = await db.students.find_one(
             {"roll_number": updates["roll_number"], "_id": {"$ne": student["_id"]}}
@@ -162,12 +152,15 @@ async def update_profile(
                 f"Roll number {updates['roll_number']} is already in use"
             )
     await db.students.update_one({"_id": student["_id"]}, {"$set": updates})
+    if "first_name" in updates or "last_name" in updates:
+        full_name = f"{updates.get('first_name', student.get('first_name', ''))} {updates.get('last_name', student.get('last_name', ''))}".strip()
+        await db.users.update_one({"_id": user["_id"]}, {"$set": {"full_name": full_name}})
     return {"message": "Profile updated"}
 
 
 @router.get("/attendance")
 async def my_attendance(
-    year: int | None = None, user=Depends(require_student), db=Depends(get_db)
+    year: int | None = Query(default=None, ge=1, le=9998), user=Depends(require_student), db=Depends(get_db)
 ):
     student = await _require_student_doc(db, user)
     match = {"student_id": student["_id"]}
@@ -211,7 +204,7 @@ async def my_attendance(
 
 @router.get("/heatmap")
 async def heatmap(
-    year: int | None = None, user=Depends(require_student), db=Depends(get_db)
+    year: int | None = Query(default=None, ge=1, le=9998), user=Depends(require_student), db=Depends(get_db)
 ):
     """GitHub-style heatmap: one entry per date that had a class.
 
@@ -352,11 +345,11 @@ async def coding_activity(
 
 @router.post("/coding-profiles")
 async def upsert_coding_profile(
-    payload: dict, user=Depends(require_student), db=Depends(get_db)
+    payload: CodingProfileInput, user=Depends(require_student), db=Depends(get_db)
 ):
     student = await _require_student_doc(db, user)
-    platform = payload.get("platform")
-    username = (payload.get("username") or "").strip()
+    platform = payload.platform
+    username = payload.username
     if platform not in available_platforms():
         raise AppError("Unsupported platform", 400)
     if not username:

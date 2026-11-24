@@ -1,6 +1,6 @@
 """Coding platform schemas."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 PLATFORMS = [
     "github",
@@ -15,6 +15,7 @@ PLATFORMS = [
 
 
 class CodingProfileInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     platform: str = Field(
         pattern="^(github|leetcode|codechef|codeforces|atcoder|hackerrank|hackerearth|geeksforgeeks)$"
     )

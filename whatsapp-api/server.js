@@ -8,7 +8,7 @@ const express = require("express");
 const dotenv = require("dotenv");
 const QRCode = require("qrcode");
 const { MongoClient, GridFSBucket, ObjectId } = require("mongodb");
-const { Client, RemoteAuth } = require("whatsapp-web.js");
+const { Client, RemoteAuth, LocalAuth, Events } = require("whatsapp-web.js");
 
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
@@ -21,8 +21,12 @@ const sessionName = process.env.WHATSAPP_SESSION_NAME || "lms-invitations";
 const backupSyncIntervalMs = Number(process.env.WHATSAPP_BACKUP_INTERVAL_MS || 300000);
 const sendIntervalMs = Number(process.env.WHATSAPP_SEND_INTERVAL_MS || 2000);
 const startupTimeoutMs = Number(process.env.WHATSAPP_START_TIMEOUT_MS || 150000);
+const socketWaitMs = 20000;
+const loginQrReloadMs = 60000;
 const mongoUri = process.env.WHATSAPP_MONGODB_URI || process.env.MONGODB_URI || "";
 const databaseName = process.env.MONGODB_DATABASE || "lms";
+// "local" keeps the browser profile on disk (fast restarts, for dev); "remote" backs it up to MongoDB (ephemeral hosts like Render).
+const useLocalAuth = String(process.env.WHATSAPP_AUTH_STRATEGY || "remote").toLowerCase() === "local";
 
 let state = "idle";
 let startupStage = "idle";
@@ -93,11 +97,16 @@ class ResilientClient extends Client {
     if (this.safeInjectPromise) return this.safeInjectPromise;
     const duringStartup = state === "starting" || state === "authenticated";
     if (duringStartup) {
-      startupStage = "injecting_whatsapp_web";
-      console.log("WhatsApp startup: injecting the WhatsApp Web client.");
+      startupStage = "waiting_for_whatsapp_socket";
+      console.log("WhatsApp startup: waiting for the WhatsApp session socket.");
     }
     this.safeInjectPromise = (async () => {
       let lastError;
+      if (duringStartup && this.pupPage) {
+        await this.waitForSocketOrPairing();
+        startupStage = "injecting_whatsapp_web";
+        console.log("WhatsApp startup: session socket is available; injecting the client.");
+      }
       for (let attempt = 0; attempt < 6; attempt += 1) {
         try {
           const result = await super.inject();
@@ -106,9 +115,10 @@ class ResilientClient extends Client {
         } catch (error) {
           const message = String(error?.message || error);
           const navigationRace = /Execution context was destroyed|Cannot find context|detached Frame/i.test(message);
-          if (!navigationRace || attempt === 5 || shuttingDown) throw error;
+          const socketRace = /Cannot read properties of null \(reading 'Socket'\)/i.test(message);
+          if ((!navigationRace && !socketRace) || attempt === 5 || shuttingDown) throw error;
           lastError = error;
-          await delay(250 * (attempt + 1));
+          await delay((socketRace ? 750 : 250) * (attempt + 1));
         }
       }
       throw lastError;
@@ -118,6 +128,87 @@ class ResilientClient extends Client {
     } finally {
       this.safeInjectPromise = null;
     }
+  }
+
+  // WhatsApp Web now sends logged-out browsers to a separate /login/ page. That page shows the
+  // pairing QR code but never loads WAWebSocketModel, which whatsapp-web.js needs before it can
+  // emit a QR code itself. Relay the login page's QR code and wait until the scan opens the app.
+  async waitForSocketOrPairing() {
+    let socketDeadline = Date.now() + socketWaitMs;
+    let relayedQr = null;
+    let qrMissingSince = null;
+    let lastQrReloadAt = 0;
+    while (!shuttingDown) {
+      let view = null;
+      try {
+        view = await this.pupPage.evaluate(() => {
+          if (location.pathname.startsWith("/login")) {
+            const container = document.querySelector("[data-ref]");
+            return {
+              login: true,
+              qr: container?.getAttribute("data-ref") || null,
+              // An expired QR code stays in data-ref, covered by a "reload QR code" button.
+              expired: Boolean(container?.querySelector("button")),
+            };
+          }
+          try {
+            return { login: false, socket: Boolean(window.require?.("WAWebSocketModel")?.Socket) };
+          } catch {
+            return { login: false, socket: false };
+          }
+        });
+      } catch (error) {
+        // A navigation, such as the redirect after a scan, replaced the page during the check.
+        if (!/Execution context was destroyed|Cannot find context|detached Frame/i.test(String(error?.message || error))) {
+          throw error;
+        }
+      }
+      if (view?.socket) return;
+      if (view?.login) {
+        socketDeadline = Date.now() + socketWaitMs;
+        if (view.expired) {
+          if (Date.now() - lastQrReloadAt > 5000) {
+            lastQrReloadAt = Date.now();
+            console.log("WhatsApp startup: the login QR code expired; requesting a new one.");
+            await this.pupPage.evaluate(() => document.querySelector("[data-ref] button")?.click()).catch((error) => {
+              console.warn("WhatsApp QR code reload failed:", error.message);
+            });
+          }
+        } else if (view.qr) {
+          qrMissingSince = null;
+          if (view.qr !== relayedQr) {
+            if (!relayedQr) console.log("WhatsApp startup: WhatsApp Web opened its login page; showing its pairing QR code.");
+            relayedQr = view.qr;
+            this.emit(Events.QR_RECEIVED, view.qr);
+          }
+        } else {
+          qrMissingSince ??= Date.now();
+          if (Date.now() - qrMissingSince > loginQrReloadMs) {
+            qrMissingSince = null;
+            console.log("WhatsApp startup: the login page has no QR code; reloading WhatsApp Web for a new one.");
+            await this.pupPage.reload({ waitUntil: "load" }).catch((error) => {
+              console.warn("WhatsApp login page reload failed:", error.message);
+            });
+          }
+        }
+      } else if (view && relayedQr && state === "qr_required") {
+        // The login page went away after showing a QR code: the account was linked.
+        state = "starting";
+        startupStage = "linking_device";
+        qrDataUrl = null;
+        relayedQr = null;
+        clearStartupTimer();
+        startupTimer = setTimeout(handleStartupTimeout, startupTimeoutMs);
+        // The first full app load can be slow. A retry here would make RemoteAuth restore the old,
+        // logged-out session from MongoDB and discard the new link, so rely on the startup timer.
+        socketDeadline = Date.now() + startupTimeoutMs;
+        console.log("WhatsApp startup: QR code scanned; opening WhatsApp Web.");
+      } else if (Date.now() > socketDeadline) {
+        throw new Error(`WhatsApp Web did not open its session socket within ${Math.round(socketWaitMs / 1000)} seconds`);
+      }
+      await delay(500);
+    }
+    throw new Error("WhatsApp API is shutting down");
   }
 }
 
@@ -361,6 +452,51 @@ class MongoSessionStore {
   }
 }
 
+function attachPageListeners(page) {
+  page.on("request", (request) => {
+    if (
+      request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com") &&
+      (state === "starting" || state === "authenticated") && startupStage !== "loading_whatsapp_web"
+    ) {
+      startupStage = "loading_whatsapp_web";
+      console.log("WhatsApp startup: navigating to WhatsApp Web.");
+    }
+  });
+  page.on("requestfailed", (request) => {
+    if (request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com/")) {
+      const failure = request.failure()?.errorText || "unknown error";
+      lastAttemptError = `WhatsApp Web navigation failed: ${failure}`;
+      console.warn(lastAttemptError);
+    }
+  });
+  page.on("response", (response) => {
+    if (response.request().isNavigationRequest() && response.url().startsWith("https://web.whatsapp.com")) {
+      console.log(`WhatsApp Web navigation returned HTTP ${response.status()}.`);
+      if (response.status() >= 400) lastAttemptError = `WhatsApp Web returned HTTP ${response.status()}`;
+    }
+  });
+  page.on("error", (error) => {
+    lastAttemptError = `WhatsApp browser page crashed: ${error.message}`;
+    console.error("WhatsApp browser page crashed:", error.message);
+  });
+}
+
+class ResilientLocalAuth extends LocalAuth {
+  async beforeBrowserInitialized() {
+    startupStage = "launching_chromium";
+    sessionSaved = fs.existsSync(path.join(this.dataPath, `session-${this.clientId}`, "Default"));
+    await super.beforeBrowserInitialized();
+    console.log(`WhatsApp startup: local session ${sessionSaved ? "found" : "not found"}; launching Chromium.`);
+  }
+
+  async afterBrowserInitialized() {
+    await super.afterBrowserInitialized();
+    startupStage = "preparing_whatsapp_web";
+    console.log("WhatsApp startup: Chromium launched; preparing WhatsApp Web.");
+    attachPageListeners(this.client.pupPage);
+  }
+}
+
 class ResilientRemoteAuth extends RemoteAuth {
   constructor(options) {
     super(options);
@@ -380,33 +516,7 @@ class ResilientRemoteAuth extends RemoteAuth {
     await super.afterBrowserInitialized();
     startupStage = "preparing_whatsapp_web";
     console.log("WhatsApp startup: Chromium launched; preparing WhatsApp Web.");
-    const page = this.client.pupPage;
-    page.on("request", (request) => {
-      if (
-        request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com") &&
-        (state === "starting" || state === "authenticated") && startupStage !== "loading_whatsapp_web"
-      ) {
-        startupStage = "loading_whatsapp_web";
-        console.log("WhatsApp startup: navigating to WhatsApp Web.");
-      }
-    });
-    page.on("requestfailed", (request) => {
-      if (request.isNavigationRequest() && request.url().startsWith("https://web.whatsapp.com/")) {
-        const failure = request.failure()?.errorText || "unknown error";
-        lastAttemptError = `WhatsApp Web navigation failed: ${failure}`;
-        console.warn(lastAttemptError);
-      }
-    });
-    page.on("response", (response) => {
-      if (response.request().isNavigationRequest() && response.url().startsWith("https://web.whatsapp.com")) {
-        console.log(`WhatsApp Web navigation returned HTTP ${response.status()}.`);
-        if (response.status() >= 400) lastAttemptError = `WhatsApp Web returned HTTP ${response.status()}`;
-      }
-    });
-    page.on("error", (error) => {
-      lastAttemptError = `WhatsApp browser page crashed: ${error.message}`;
-      console.error("WhatsApp browser page crashed:", error.message);
-    });
+    attachPageListeners(this.client.pupPage);
   }
 
   async storeRemoteSession(options) {
@@ -471,12 +581,14 @@ async function main() {
   const store = new MongoSessionStore(bucket, db.collection(`${bucketName}.files`), dataPath);
 
   client = new ResilientClient({
-    authStrategy: new ResilientRemoteAuth({
-      clientId: sessionName,
-      dataPath,
-      store,
-      backupSyncIntervalMs,
-    }),
+    authStrategy: useLocalAuth
+      ? new ResilientLocalAuth({ clientId: sessionName, dataPath })
+      : new ResilientRemoteAuth({
+        clientId: sessionName,
+        dataPath,
+        store,
+        backupSyncIntervalMs,
+      }),
     puppeteer: {
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       headless: true,
@@ -520,6 +632,7 @@ async function main() {
     startupTimer = setTimeout(handleStartupTimeout, startupTimeoutMs);
     state = "authenticated";
     startupStage = "authenticated";
+    if (useLocalAuth) sessionSaved = true;
     qrDataUrl = null;
     lastError = null;
     console.log("WhatsApp account authenticated.");
@@ -613,7 +726,7 @@ async function main() {
     }
   });
 
-  app.listen(port, bindHost, () => console.log(`WhatsApp API listening on ${bindHost}:${port}`));
+  app.listen(port, bindHost, () => console.log(`WhatsApp API listening on ${bindHost}:${port} (${useLocalAuth ? "local-disk" : "MongoDB"} session)`));
 }
 
 main().catch((error) => {

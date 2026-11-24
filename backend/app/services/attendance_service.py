@@ -115,7 +115,19 @@ class ClassService:
                             "Review their batch assignments or choose the matching batch."
                         )
             clean = self._normalize_class_doc(clean)
+            start_time = clean.get("start_time", existing.get("start_time"))
+            end_time = clean.get("end_time", existing.get("end_time"))
+            if start_time and end_time and end_time <= start_time:
+                raise AppError("End time must be after start time")
             await self.classes.update(class_id, clean)
+            if "date" in clean:
+                session = await self.attendance.get_session_by_class(class_id)
+                if session:
+                    await self.attendance.records.update_many(
+                        {"class_session_id": session["_id"]},
+                        {"$set": {"date": clean["date"], "updated_at": datetime.now(timezone.utc)}},
+                    )
+                    await self.attendance.touch_session(str(session["_id"]))
         await self.audit.log(
             AuditAction.CLASS_UPDATED,
             user_id=str(actor["_id"]),
@@ -279,6 +291,7 @@ class AttendanceService:
         )
         class_date = cls["date"]
         await self.attendance.save_records(str(session["_id"]), class_date, records)
+        await self.attendance.touch_session(str(session["_id"]))
         action = (
             AuditAction.ATTENDANCE_UPDATED
             if existing_session

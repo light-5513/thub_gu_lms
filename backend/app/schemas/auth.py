@@ -45,7 +45,7 @@ class InviteRequest(BaseModel):
     email: EmailStr
     phone: str | None = Field(default=None, min_length=8, max_length=24)
     channels: list[Literal["email", "whatsapp"]] = Field(default_factory=lambda: ["email"])
-    role: str = Field(default="STUDENT", max_length=20)
+    role: Literal["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"] = "STUDENT"
 
 
 class InviteRecipient(BaseModel):
@@ -57,7 +57,7 @@ class BulkInviteRequest(BaseModel):
     recipients: list[InviteRecipient] | None = Field(default=None, min_length=1, max_length=500)
     emails: list[EmailStr] | None = Field(default=None, min_length=1, max_length=500)
     channels: list[Literal["email", "whatsapp"]] = Field(default_factory=lambda: ["email"])
-    role: str = Field(default="STUDENT", max_length=20)
+    role: Literal["STUDENT", "TEACHER", "ADMIN", "SUPER_ADMIN"] = "STUDENT"
 
     @model_validator(mode="after")
     def require_one_recipient_list(self):

@@ -78,6 +78,7 @@ class BatchService:
         """Assign a list of roll numbers to a batch."""
         # Ensure batch exists
         batch = await self.get_batch(batch_id)
+        roll_numbers = list(dict.fromkeys(roll.strip() for roll in roll_numbers if roll.strip()))
         
         # Find valid roll numbers
         cursor = self.students.find({"roll_number": {"$in": roll_numbers}}, {"roll_number": 1, "batch_id": 1})
@@ -155,20 +156,22 @@ class BatchService:
 
     async def parse_and_assign_xlsx(self, batch_id: str, content: bytes) -> dict:
         """Parse an XLSX file for roll numbers and assign them."""
-        wb = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
-        sheet = wb.active
-        
-        # Assume first row is header, look for "roll_number"
-        headers = [str(cell.value).strip().lower() for cell in sheet[1] if cell.value]
-        if "roll_number" not in headers:
-            raise AppError("Missing 'roll_number' column in Excel file")
-            
-        roll_index = headers.index("roll_number")
-        
-        roll_numbers = []
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            if len(row) > roll_index and row[roll_index]:
-                roll_numbers.append(str(row[roll_index]).strip())
+        try:
+            wb = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
+        except Exception as exc:
+            raise AppError("The file could not be parsed as an .xlsx workbook") from exc
+        try:
+            sheet = wb.active
+            headers = [str(cell.value).strip().lower() if cell.value is not None else "" for cell in sheet[1]]
+            if "roll_number" not in headers:
+                raise AppError("Missing 'roll_number' column in Excel file")
+            roll_index = headers.index("roll_number")
+            roll_numbers = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if len(row) > roll_index and row[roll_index] is not None:
+                    roll_numbers.append(str(row[roll_index]).strip())
+        finally:
+            wb.close()
                 
         if not roll_numbers:
             raise AppError("No roll numbers found in the Excel file")

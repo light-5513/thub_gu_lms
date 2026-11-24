@@ -21,8 +21,28 @@ function rangeForDays(days: number) {
   return { start: dateKey(start), end: dateKey(end) };
 }
 
+function october2026Range() {
+  return { start: "2026-10-01", end: "2026-10-31" };
+}
+
 function count(value: number): string {
   return value.toLocaleString();
+}
+
+function platformCount(member: BatchMonitor["members"][number], platform: string) {
+  const result = member.coding.platform_counts[platform];
+  if (!result || result.value === null) {
+    return { text: "-", title: "No dated count is available for this interval." };
+  }
+  const prefix = result.quality === "estimated" ? "~" : "";
+  const suffix = result.quality === "partial" ? "*" : "";
+  const coverage = result.coverage_start && result.coverage_end
+    ? ` History covers ${result.coverage_start} to ${result.coverage_end}.`
+    : "";
+  return {
+    text: `${prefix}${count(result.value)}${suffix}`,
+    title: `${result.metric_label}.${coverage}${result.possibly_truncated ? " The platform history may be truncated." : ""}`,
+  };
 }
 
 function attendanceValue(value: number | null): string {
@@ -111,7 +131,7 @@ function SummaryItem({ label, value, detail, icon }: { label: string; value: num
 
 export function BatchMonitorPage() {
   const { batchId = "" } = useParams<{ batchId: string }>();
-  const [range, setRange] = useState(() => rangeForDays(30));
+  const [range, setRange] = useState(october2026Range);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const query = useBatchMonitor(batchId, range.start, range.end);
@@ -169,8 +189,11 @@ export function BatchMonitorPage() {
                 <div className="mt-4 space-y-2">
                   {data.coding.platforms.map((platform) => (
                     <div key={platform.platform} className="neo-inset-surface flex items-center justify-between gap-3 rounded-2xl px-4 py-3">
-                      <span className="min-w-0 truncate text-sm font-medium capitalize text-leather-300">{platform.platform.replace("geeksforgeeks", "GeeksforGeeks")}</span>
-                      <span className="shrink-0 text-xs text-leather-200">{platform.profiles} profiles · {platform.active_students} active</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium capitalize text-leather-300">{platform.platform.replace("geeksforgeeks", "GeeksforGeeks")}</span>
+                        <span className="block truncate text-[11px] text-leather-50">{platform.metric_label}</span>
+                      </span>
+                      <span className="shrink-0 text-right text-xs text-leather-200">{platform.profiles} profiles / {platform.active_students} active<br /><span className="text-[10px] text-leather-50">{platform.available_profiles} with dated data{platform.estimated_profiles ? ` / ${platform.estimated_profiles} estimated` : ""}</span></span>
                     </div>
                   ))}
                 </div>
@@ -192,8 +215,9 @@ export function BatchMonitorPage() {
           <Card className="p-0">
             <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
               <div>
-                <h2 className="text-base font-semibold text-leather-300">Member progress</h2>
+                <h2 className="text-base font-semibold text-leather-300">Problems solved by student and platform</h2>
                 <p className="mt-1 text-xs text-leather-50">{members.length} of {data.members.length} current batch members</p>
+                <p className="mt-1 max-w-3xl text-xs leading-relaxed text-leather-50">Counts use dated platform history for the selected interval. A dash means no dated count is available, ~ marks a sync estimate, and * marks partial history. LeetCode shows submissions (all verdicts), not accepted problems; GitHub shows public commits.</p>
               </div>
               <div className="relative w-full sm:w-72">
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-leather-50" aria-hidden="true" />
@@ -202,19 +226,34 @@ export function BatchMonitorPage() {
             </div>
             {members.length ? (
               <>
-                <Table headers={["Student", "Status", "Attendance", "Present / Late / Absent", "Coding", "Last activity", ""]}>
-                  {visibleMembers.map((member) => (
-                    <tr key={member.id} className="transition-colors hover:bg-primary-500/10 focus-within:bg-primary-500/10">
-                      <td className="px-4 py-3"><p className="max-w-56 truncate text-sm font-semibold text-leather-300" title={member.name}>{member.name}</p><p className="text-xs text-leather-50">{member.roll_number}</p></td>
-                      <td className="px-4 py-3"><Badge tone={member.status === "active" ? "green" : "gray"}>{member.status}</Badge></td>
-                      <td className="px-4 py-3 text-sm font-semibold text-leather-300">{attendanceValue(member.attendance.percentage)}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.attendance.present} / {member.attendance.late} / {member.attendance.absent}</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.coding.profiles} profiles · {member.coding.activity_days} days</td>
-                      <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.coding.last_activity_date ?? "—"}</td>
-                      <td className="px-4 py-3"><Link to={`/admin/students/${encodeURIComponent(member.id)}/report`} className="text-xs font-semibold text-primary-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">Report</Link></td>
-                    </tr>
-                  ))}
-                </Table>
+                <div className="overflow-x-auto">
+                  <Table headers={[
+                    "Student",
+                    "Status",
+                    ...data.coding.platforms.map((platform) => `${platform.platform.replace("geeksforgeeks", "GeeksforGeeks")} - ${platform.metric_label}`),
+                    "Attendance",
+                    "Present / Late / Absent",
+                    "Coding days",
+                    "Last activity",
+                    "",
+                  ]}>
+                    {visibleMembers.map((member) => (
+                      <tr key={member.id} className="transition-colors hover:bg-primary-500/10 focus-within:bg-primary-500/10">
+                        <td className="px-4 py-3"><p className="max-w-56 truncate text-sm font-semibold text-leather-300" title={member.name}>{member.name}</p><p className="text-xs text-leather-50">{member.roll_number}</p></td>
+                        <td className="px-4 py-3"><Badge tone={member.status === "active" ? "green" : "gray"}>{member.status}</Badge></td>
+                        {data.coding.platforms.map((platform) => {
+                          const value = platformCount(member, platform.platform);
+                          return <td key={platform.platform} title={value.title} className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-leather-300">{value.text}</td>;
+                        })}
+                        <td className="px-4 py-3 text-sm font-semibold text-leather-300">{attendanceValue(member.attendance.percentage)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.attendance.present} / {member.attendance.late} / {member.attendance.absent}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.coding.activity_days}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-xs text-leather-200">{member.coding.last_activity_date ?? "-"}</td>
+                        <td className="px-4 py-3"><Link to={`/admin/students/${encodeURIComponent(member.id)}/report`} className="text-xs font-semibold text-primary-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500">Report</Link></td>
+                      </tr>
+                    ))}
+                  </Table>
+                </div>
                 {totalPages > 1 && <div className="border-t border-[var(--border)] p-4"><Pagination page={page} totalPages={totalPages} onChange={setPage} /></div>}
               </>
             ) : <EmptyState title={data.members.length ? "No matching members" : "No members to show"} description={data.members.length ? "Try a different name or roll number." : "Assign students to this batch to see their progress."} />}

@@ -22,8 +22,16 @@ class AtCoderAdapter(CodingPlatformAdapter):
         # Accepted count from kenkoooo API (user_submissions is heavy; use AC count endpoint)
         base = settings.ATCODER_API_URL.rstrip("/")
         url = f"{base}/user/ac_rank?user={username}"
-        response = await self._request("GET", url)
-        data = response.json()
+        try:
+            response = await self._request("GET", url)
+            data = response.json()
+        except AdapterError as exc:
+            if "not found" not in str(exc).lower():
+                raise
+            # AtCoder Problems only ranks users with at least one accepted
+            # submission, so confirm the account on AtCoder before calling it missing.
+            await self._require_atcoder_account(username)
+            data = {"count": 0, "rank": None}
         if not isinstance(data, dict):
             raise AdapterError("Unexpected AtCoder API response")
         cutoff = int((datetime.now(timezone.utc) - timedelta(days=365)).timestamp())
@@ -57,6 +65,14 @@ class AtCoderAdapter(CodingPlatformAdapter):
             .isoformat(),
             "rating_history": rating_history,
         }
+
+    async def _require_atcoder_account(self, username: str) -> None:
+        try:
+            await self._request("GET", f"https://atcoder.jp/users/{username}")
+        except AdapterError as exc:
+            if "not found" in str(exc).lower():
+                raise AdapterError("AtCoder profile not found") from exc
+            raise
 
     async def _fetch_rating_history(self, username: str) -> list[dict[str, Any]]:
         try:

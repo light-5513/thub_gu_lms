@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/forms";
 import { Table } from "@/components/ui/navigation";
 import { useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
+import { useAuth } from "@/context/AuthContext";
 
 const PLATFORMS = ["leetcode", "codechef", "codeforces", "atcoder", "github", "geeksforgeeks"] as const;
 const LABELS: Record<string, string> = { leetcode: "LeetCode", codechef: "CodeChef", codeforces: "Codeforces", atcoder: "AtCoder", github: "GitHub", geeksforgeeks: "GeeksForGeeks", all: "All platforms" };
 
 export function CodingProfilesAdminPage() {
+  const { session } = useAuth();
+  const canManage = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN";
   const trigger = useTriggerSync();
   const toast = useToast();
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export function CodingProfilesAdminPage() {
       </div>
 
       {/* Trigger buttons */}
-      <Card>
+      {canManage && <Card>
         <CardHeader title="Fetch data" subtitle="Each button queues a background job that processes all students with a username on that platform" />
         <div className="flex flex-wrap gap-2">
           {PLATFORMS.map((p) => (
@@ -47,7 +50,7 @@ export function CodingProfilesAdminPage() {
             <PlayCircle size={15} /> Get all data
           </Button>
         </div>
-      </Card>
+      </Card>}
 
       {/* Active job progress */}
       {activeJobId && (

@@ -1,9 +1,12 @@
 """Student-related schemas."""
 
-from pydantic import BaseModel, EmailStr, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class StudentCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     first_name: str = Field(min_length=1, max_length=80)
     last_name: str = Field(min_length=1, max_length=80)
     email: EmailStr
@@ -17,6 +20,7 @@ class StudentCreate(BaseModel):
 
 
 class StudentUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     first_name: str | None = Field(default=None, min_length=1, max_length=80)
     last_name: str | None = Field(default=None, min_length=1, max_length=80)
     roll_number: str | None = Field(default=None, min_length=1, max_length=32)
@@ -24,7 +28,7 @@ class StudentUpdate(BaseModel):
     branch: str | None = None
     section: str | None = None
     phone: str | None = None
-    status: str | None = None
+    status: Literal["active", "inactive"] | None = None
     batch_id: str | None = None
     academic_year_id: str | None = None
 
@@ -32,9 +36,15 @@ class StudentUpdate(BaseModel):
 class SelfProfileUpdate(BaseModel):
     """Fields a student may edit on their own profile. Email is never editable."""
 
-    first_name: str | None = None
-    last_name: str | None = None
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    first_name: str | None = Field(default=None, min_length=1, max_length=80)
+    last_name: str | None = Field(default=None, min_length=1, max_length=80)
     phone: str | None = Field(default=None, max_length=20)
+    roll_number: str | None = Field(default=None, min_length=1, max_length=32)
+    course: str | None = Field(default=None, max_length=64)
+    branch: str | None = Field(default=None, max_length=64)
+    section: str | None = Field(default=None, max_length=16)
 
 
 class StudentOut(BaseModel):

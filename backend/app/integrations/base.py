@@ -59,7 +59,7 @@ class CodingPlatformAdapter:
                     )
                 if response.status_code == 404:
                     raise AdapterError("Profile not found on platform")
-                if 400 <= response.status_code < 500:
+                if 400 <= response.status_code < 500 and response.status_code != 429:
                     detail = response.text.strip()[:200]
                     suffix = f": {detail}" if detail else ""
                     raise AdapterError(
@@ -67,6 +67,7 @@ class CodingPlatformAdapter:
                         f"{response.status_code}{suffix}"
                     )
                 if response.status_code == 429 or response.status_code >= 500:
+                    last_exc = AdapterError(f"{self.name} returned HTTP {response.status_code}")
                     # Retry with exponential backoff
                     wait = delay * (2 ** (attempt - 1))
                     logger.warning(
@@ -75,7 +76,8 @@ class CodingPlatformAdapter:
                         response.status_code,
                         wait,
                     )
-                    await asyncio.sleep(wait)
+                    if attempt < self.max_retries:
+                        await asyncio.sleep(wait)
                     continue
                 response.raise_for_status()
                 return response

@@ -41,7 +41,12 @@ class SettingsService:
         doc.pop("created_at", None)
         doc.pop("updated_at", None)
         for key, value in doc.items():
-            merged[key] = value
+            if value is None and key != "logo_url":
+                continue
+            if isinstance(DEFAULTS.get(key), dict) and isinstance(value, dict):
+                merged[key] = {**DEFAULTS[key], **value}
+            else:
+                merged[key] = value
         return merged
 
     async def get(self, key: str, default: Any = None) -> Any:
@@ -51,7 +56,10 @@ class SettingsService:
     async def update(self, fields: dict, changed_by: str = "system") -> dict:
         old = await self.all()
         allowed = set(DEFAULTS.keys())
-        clean = {k: v for k, v in fields.items() if k in allowed}
+        clean = {k: v for k, v in fields.items() if k in allowed and (v is not None or k == "logo_url")}
+        for key, value in clean.items():
+            if isinstance(DEFAULTS.get(key), dict) and isinstance(value, dict):
+                clean[key] = {**old[key], **value}
         await self.repo.update(clean)
         await self.repo.push_history(old, clean, changed_by)
         return await self.all()

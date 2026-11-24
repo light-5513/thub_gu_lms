@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,13 @@ class ValidationError(AppError):
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(DuplicateKeyError)
+    async def duplicate_key_handler(request: Request, exc: DuplicateKeyError):
+        return JSONResponse(
+            status_code=409,
+            content={"detail": "A record with these details already exists. Refresh and try again."},
+        )
+
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError):
         return JSONResponse(

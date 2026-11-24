@@ -22,7 +22,7 @@ class LeetCodeAdapter(CodingPlatformAdapter):
         profile { ranking reputation }
         submitStatsGlobal {
           acSubmissionNum { difficulty count }
-          totalSubmissionNum { difficulty count }
+          totalSubmissionNum { difficulty count submissions }
         }
         tagProblemCounts { advanced { tagSlug problemsSolved } intermediate { tagSlug problemsSolved } fundamental { tagSlug problemsSolved } }
         userCalendar {
@@ -73,8 +73,14 @@ class LeetCodeAdapter(CodingPlatformAdapter):
         total_submissions = (user.get("submitStatsGlobal") or {}).get(
             "totalSubmissionNum"
         ) or []
+        # "count" here is the number of problems attempted; "submissions" counts
+        # every submission, which is what the portal shows as "All submissions".
         submitted = next(
-            (int(d["count"]) for d in total_submissions if d.get("difficulty") == "All"),
+            (
+                int(d.get("submissions") or 0)
+                for d in total_submissions
+                if d.get("difficulty") == "All"
+            ),
             0,
         )
         solved = all_count if all_count is not None else easy + medium + hard

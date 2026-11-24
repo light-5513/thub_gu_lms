@@ -68,7 +68,14 @@ export interface BatchMonitor {
   coding: {
     profiles: number;
     activity_days: number;
-    platforms: { platform: string; profiles: number; active_students: number }[];
+    platforms: {
+      platform: string;
+      profiles: number;
+      active_students: number;
+      available_profiles: number;
+      estimated_profiles: number;
+      metric_label: string;
+    }[];
   };
   members: {
     id: string;
@@ -76,7 +83,20 @@ export interface BatchMonitor {
     roll_number: string;
     status: string;
     attendance: BatchMonitorAttendance;
-    coding: { profiles: number; activity_days: number; last_activity_date: string | null };
+    coding: {
+      profiles: number;
+      activity_days: number;
+      last_activity_date: string | null;
+      platform_counts: Record<string, {
+        value: number | null;
+        quality: "complete" | "partial" | "estimated" | "unavailable";
+        metric_label: string;
+        coverage_start?: string | null;
+        coverage_end?: string | null;
+        intervals?: number;
+        possibly_truncated?: boolean;
+      }>;
+    };
   }[];
 }
 

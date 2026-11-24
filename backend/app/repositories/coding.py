@@ -21,17 +21,29 @@ class CodingProfileRepository:
         self, student_id: str, platform: str, username: str
     ) -> dict:
         now = datetime.now(timezone.utc)
+        key = {"student_id": oid(student_id), "platform": platform}
+        existing = await self.profiles.find_one(key)
+        fields = {"username": username, "updated_at": now}
+        if existing and existing.get("username") != username:
+            await self.stats.delete_one(key)
+            await self.activity.delete_many(key)
+            await self.db.leaderboard_scores.delete_many({
+                "student_id": oid(student_id),
+                "platform": {"$in": [platform, "overall"]},
+            })
+            fields.update({
+                "sync_status": "never_synced", "verified": False,
+                "sync_error": None, "last_synced_at": None, "profile_url": "",
+            })
+        insert_fields = {
+            "student_id": oid(student_id), "platform": platform, "created_at": now,
+            "sync_status": "never_synced", "verified": False,
+        }
         doc = await self.profiles.find_one_and_update(
-            {"student_id": oid(student_id), "platform": platform},
+            key,
             {
-                "$set": {"username": username, "updated_at": now},
-                "$setOnInsert": {
-                    "student_id": oid(student_id),
-                    "platform": platform,
-                    "created_at": now,
-                    "sync_status": "never_synced",
-                    "verified": False,
-                },
+                "$set": fields,
+                "$setOnInsert": {k: v for k, v in insert_fields.items() if k not in fields},
             },
             upsert=True,
             return_document=True,
@@ -48,6 +60,9 @@ class CodingProfileRepository:
         await self.activity.delete_many(
             {"student_id": oid(student_id), "platform": platform}
         )
+        await self.db.leaderboard_scores.delete_many({
+            "student_id": oid(student_id), "platform": {"$in": [platform, "overall"]},
+        })
 
     async def list_profiles(self, student_id: str) -> list[dict]:
         cursor = self.profiles.find({"student_id": oid(student_id)})

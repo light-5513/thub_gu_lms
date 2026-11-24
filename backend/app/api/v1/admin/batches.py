@@ -27,8 +27,8 @@ router = APIRouter(prefix="/admin", tags=["admin-batches"])
 
 @router.get("/batches", response_model=BatchListResponse)
 async def list_batches(
-    page: int = 1,
-    page_size: int = 50,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=500),
     db: AsyncIOMotorDatabase = Depends(get_db),
     admin: dict = Depends(require_staff),
 ):
@@ -79,10 +79,12 @@ async def upload_batch_students(
     admin: dict = Depends(require_staff),
 ):
     """Upload an Excel file containing a roll_number column to assign students."""
-    if not file.filename.endswith((".xlsx")):
+    if not (file.filename or "").lower().endswith(".xlsx"):
         raise AppError("Only .xlsx files are supported for batch upload", status_code=400)
     
-    content = await file.read()
+    content = await file.read(10 * 1024 * 1024 + 1)
+    if len(content) > 10 * 1024 * 1024:
+        raise AppError("File is too large (max 10 MB)")
     service = BatchService(db)
     return await service.parse_and_assign_xlsx(batch_id, content)
 
@@ -90,8 +92,8 @@ async def upload_batch_students(
 @router.get("/batches/{batch_id}/students", response_model=StudentListResponse)
 async def get_batch_students(
     batch_id: str,
-    page: int = 1,
-    page_size: int = 50,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=500),
     db: AsyncIOMotorDatabase = Depends(get_db),
     admin: dict = Depends(require_staff),
 ):

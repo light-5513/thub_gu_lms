@@ -3,10 +3,10 @@ import axios from "axios";
 export const api = axios.create({
   baseURL: "/api",
   withCredentials: true,
-  headers: { "Content-Type": "application/json" },
 });
 
 let onUnauthorized: (() => void) | null = null;
+let refreshPromise: Promise<void> | null = null;
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
@@ -18,7 +18,9 @@ const tokenParam = urlParams.get("sandbox_token");
 if (tokenParam) {
   memorySandboxToken = tokenParam;
   // Clean up URL so it doesn't linger
-  window.history.replaceState({}, document.title, window.location.pathname);
+  urlParams.delete("sandbox_token");
+  const search = urlParams.toString();
+  window.history.replaceState({}, document.title, `${window.location.pathname}${search ? `?${search}` : ""}${window.location.hash}`);
 }
 
 // Intercept requests to add sandbox token dynamically if present
@@ -30,9 +32,9 @@ api.interceptors.request.use((config) => {
 });
 
 // Endpoints whose own 401s must never trigger a refresh/redirect cycle
-// (they are the *cause* of authentication, or merely probe session state).
+// (they are responsible for authentication).
 function isAuthEndpoint(url: string): boolean {
-  return url.includes("/auth/login") || url.includes("/auth/refresh") || url.includes("/auth/me");
+  return url.includes("/auth/login") || url.includes("/auth/refresh");
 }
 
 api.interceptors.response.use(
@@ -44,16 +46,21 @@ api.interceptors.response.use(
     if (status === 401 && original && !original._retry && !isAuthEndpoint(url)) {
       if (memorySandboxToken) {
         memorySandboxToken = null;
-        window.location.href = "/";
+        onUnauthorized?.();
         return Promise.reject(error);
       }
       original._retry = true;
       try {
-        await api.post("/auth/refresh");
+        refreshPromise ??= api.post("/auth/refresh").then(() => {}).finally(() => {
+          refreshPromise = null;
+        });
+        await refreshPromise;
         return api(original);
       } catch {
-        onUnauthorized?.();
+        if (!url.includes("/auth/me")) onUnauthorized?.();
       }
+    } else if (status === 401 && original?._retry && !isAuthEndpoint(url)) {
+      if (!url.includes("/auth/me")) onUnauthorized?.();
     } else if (status === 401 && isAuthEndpoint(url) && memorySandboxToken) {
         memorySandboxToken = null;
     }
@@ -93,6 +100,13 @@ export function errorMessage(err: unknown): string {
   if (axios.isAxiosError(err)) {
     const detail = err.response?.data?.detail;
     if (typeof detail === "string") return detail;
+    if (Array.isArray(detail)) {
+      const messages = detail.map((item: { loc?: unknown[]; msg?: string }) => {
+        const field = item.loc?.filter((part) => part !== "body" && part !== "query").join(".");
+        return item.msg ? `${field ? `${field} — ` : ""}${item.msg}` : "";
+      }).filter(Boolean);
+      if (messages.length) return messages.join(". ");
+    }
     return "We couldn't complete your request right now. Please try again.";
   }
   return "Something went wrong. Please try again.";

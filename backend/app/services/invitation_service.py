@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import datetime, timedelta, timezone
+from pymongo.errors import DuplicateKeyError
 
 from app.config import settings
 from app.core import security
@@ -202,6 +203,14 @@ class InvitationService:
         doc = await self._valid_doc(token)
         email = doc["email"]
         role = doc.get("role", Role.STUDENT.value)
+        data = {
+            **data,
+            **{key: (data.get(key) or "").strip() for key in (
+                "first_name", "last_name", "roll_number", "course", "branch", "section"
+            )},
+        }
+        if not data["first_name"] or not data["last_name"]:
+            raise AppError("First name and last name are required")
 
         if await self.db.users.find_one({"email": email}):
             raise ConflictError("An account with this email already exists")
@@ -223,6 +232,7 @@ class InvitationService:
             "token_version": 0,
             "created_at": datetime.now(timezone.utc),
         }
+        user_result = None
         try:
             user_result = await self.db.users.insert_one(user_doc)
             user_id = str(user_result.inserted_id)
@@ -250,8 +260,12 @@ class InvitationService:
                 student_id = str(student_result.inserted_id)
             else:
                 student_id = None
-        except Exception:
-            raise AppError("Failed to create account")
+        except Exception as exc:
+            if user_result is not None:
+                await self.db.users.delete_one({"_id": user_result.inserted_id})
+            if isinstance(exc, DuplicateKeyError):
+                raise ConflictError("An account with this email or roll number already exists") from exc
+            raise AppError("Failed to create account") from exc
 
         await self.invites.update_one(
             {"_id": doc["_id"]},

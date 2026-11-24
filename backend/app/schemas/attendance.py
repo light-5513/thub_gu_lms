@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import date as dt_date, time as dt_time
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ClassCreate(BaseModel):
@@ -19,6 +19,12 @@ class ClassCreate(BaseModel):
     session_mode: str | None = None
     academic_year_id: str | None = None
     batch_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_times(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("End time must be after start time")
+        return self
 
 
 class ClassUpdate(BaseModel):

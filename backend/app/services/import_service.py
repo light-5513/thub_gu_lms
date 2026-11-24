@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
+from itertools import islice
 from typing import Any
 
 import bson
@@ -32,10 +33,18 @@ def parse_xlsx(content: bytes) -> list[dict]:
         raise AppError("File is too large (max 10 MB)")
     try:
         wb = load_workbook(filename=BytesIO(content), read_only=True, data_only=True)
-        ws = wb.active
-        rows = list(ws.iter_rows(values_only=True))
     except Exception:
         raise AppError("The file could not be parsed as an .xlsx workbook")
+    try:
+        ws = wb.active
+        rows = list(islice(ws.iter_rows(values_only=True), MAX_ROWS + 2))
+    except Exception as exc:
+        raise AppError("The file could not be parsed as an .xlsx workbook") from exc
+    finally:
+        wb.close()
+
+    if len(rows) > MAX_ROWS + 1:
+        raise AppError(f"The workbook exceeds the limit of {MAX_ROWS} rows")
 
     if not rows:
         raise AppError("The workbook has no data")
@@ -173,8 +182,8 @@ class ImportService:
             "import_token": token,
             "total_records": len(rows),
             "valid_records": len(valid),
-            "invalid_records": len(errors),
-            "duplicate_records": sum(1 for e in errors if "Duplicate" in e["error"]),
+            "invalid_records": len({e["row"] for e in errors}),
+            "duplicate_records": len({e["row"] for e in errors if "Duplicate" in e["error"] or "already exists" in e["error"]}),
             "errors": [
                 {"row": e["row"], "field": e["field"], "error": e["error"]}
                 for e in errors

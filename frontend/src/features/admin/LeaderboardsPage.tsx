@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Crown, Layers, RefreshCcw, Trophy, Users } from "lucide-react";
 import { clsx } from "clsx";
-import { useBatches, useLeaderboard, useRecalcLeaderboard } from "@/api/hooks";
+import { useBatches, useBatchMonitor, useLeaderboard, useRecalcLeaderboard } from "@/api/hooks";
+import { useAuth } from "@/context/AuthContext";
 import { Badge, Card, EmptyState, ErrorState, Skeleton, TableSkeleton } from "@/components/ui/display";
 import { Button, DatePicker, Input, Select } from "@/components/ui/forms";
 import { Pagination, Tabs, Table } from "@/components/ui/navigation";
 import { useToast } from "@/components/ui/overlays";
 import { errorMessage } from "@/api/client";
-import type { BatchSummary } from "@/types";
+import type { BatchMonitor, BatchSummary } from "@/types";
 
 const TABS = [
   { key: "overall", label: "Lifetime snapshot" },
@@ -21,11 +22,62 @@ const TABS = [
 ];
 
 function currentRange() {
-  const end = new Date();
-  const start = new Date(end);
-  start.setDate(start.getDate() - 29);
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return { start: iso(start), end: iso(end) };
+  return { start: "2026-10-01", end: "2026-10-31" };
+}
+
+function platformCount(member: BatchMonitor["members"][number], platform: string) {
+  const result = member.coding.platform_counts[platform];
+  if (!result || result.value === null) {
+    return { text: "—", title: "No dated count is available for this interval." };
+  }
+  const prefix = result.quality === "estimated" ? "~" : "";
+  const suffix = result.quality === "partial" ? "*" : "";
+  const coverage = result.coverage_start && result.coverage_end
+    ? ` History covers ${result.coverage_start} to ${result.coverage_end}.`
+    : "";
+  return {
+    text: `${prefix}${Math.trunc(result.value).toLocaleString()}${suffix}`,
+    title: `${result.metric_label}.${coverage}${result.possibly_truncated ? " The platform history may be truncated." : ""}`,
+  };
+}
+
+function StudentPlatformCounts({ data, selectedPlatform }: { data: BatchMonitor; selectedPlatform: string }) {
+  if (data.students.total === 0) {
+    return <Card><EmptyState icon={<Users size={20} />} title="No students in this batch" description="Assign students to this batch to see their platform counts." /></Card>;
+  }
+
+  const platform = data.coding.platforms.find((item) => item.platform === selectedPlatform);
+  if (!platform) {
+    return <Card><EmptyState icon={<Trophy size={20} />} title={`No ${selectedPlatform} profiles in this batch`} description="Connect a student profile on this platform to see its dated counts." /></Card>;
+  }
+
+  const counts = data.members.map((member) => member.coding.platform_counts[selectedPlatform]);
+  const withValue = counts.filter((value) => value && value.value !== null).length;
+  const partial = counts.filter((value) => value?.quality === "partial").length;
+  const estimated = counts.filter((value) => value?.quality === "estimated").length;
+
+  return (
+    <Card className="p-0">
+      <div className="px-5 py-4 sm:px-6">
+        <h2 className="text-base font-semibold capitalize text-leather-300">{selectedPlatform.replace("geeksforgeeks", "GeeksforGeeks")} counts by student</h2>
+        <p className="mt-1 text-xs leading-relaxed text-leather-50">{platform.metric_label} from {data.period.start_date} to {data.period.end_date}. {withValue} of {data.members.length} students have a count; {partial} have partial history{estimated ? ` and ${estimated} have sync estimates` : ""}. A dash means no dated count is available.</p>
+      </div>
+      <Table headers={["Student", "Roll number", platform.metric_label, "Coverage"]}>
+        {data.members.map((member) => {
+          const value = platformCount(member, selectedPlatform);
+          const quality = member.coding.platform_counts[selectedPlatform]?.quality ?? "unavailable";
+          return (
+            <tr key={member.id} className="transition-colors hover:bg-primary-500/10">
+              <td className="px-4 py-3 text-sm font-semibold text-leather-300">{member.name}</td>
+              <td className="px-4 py-3 font-mono text-xs text-leather-50">{member.roll_number || "—"}</td>
+              <td title={value.title} className="whitespace-nowrap px-4 py-3 text-sm font-semibold text-leather-300">{value.text}</td>
+              <td className="px-4 py-3 text-xs capitalize text-leather-200">{quality}</td>
+            </tr>
+          );
+        })}
+      </Table>
+    </Card>
+  );
 }
 
 export function AdminLeaderboardsPage() {
@@ -87,6 +139,8 @@ function BatchClusters({ onSelect }: { onSelect: (batch: BatchSummary) => void }
 }
 
 function BatchLeaderboard({ batch, onBack }: { batch: BatchSummary; onBack: () => void }) {
+  const { session } = useAuth();
+  const canManage = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN";
   const [tab, setTab] = useState("activity");
   const [course, setCourse] = useState("");
   const [branch, setBranch] = useState("");
@@ -94,6 +148,7 @@ function BatchLeaderboard({ batch, onBack }: { batch: BatchSummary; onBack: () =
   const [range, setRange] = useState(currentRange);
   const periodMode = tab !== "overall";
   const query = useLeaderboard("admin", tab, { batch_id: batch.id, course, branch, section }, periodMode ? range.start : undefined, periodMode ? range.end : undefined);
+  const platformCounts = useBatchMonitor(batch.id, range.start, range.end);
   const recalc = useRecalcLeaderboard();
   const toast = useToast();
 
@@ -146,7 +201,7 @@ function BatchLeaderboard({ batch, onBack }: { batch: BatchSummary; onBack: () =
               />
             </>
           )}
-          {!periodMode && <Button
+          {!periodMode && canManage && <Button
             variant="secondary"
             size="sm"
             loading={recalc.isPending}
@@ -166,6 +221,14 @@ function BatchLeaderboard({ batch, onBack }: { batch: BatchSummary; onBack: () =
       </div>
 
       <Tabs tabs={TABS} active={tab} onChange={setTab} />
+
+      {periodMode && (platformCounts.isLoading ? (
+        <Card><TableSkeleton rows={6} cols={5} /></Card>
+      ) : platformCounts.isError ? (
+        <Card><ErrorState message={errorMessage(platformCounts.error)} onRetry={() => { void platformCounts.refetch(); }} /></Card>
+      ) : platformCounts.data && tab !== "activity" ? (
+        <StudentPlatformCounts data={platformCounts.data} selectedPlatform={tab} />
+      ) : null)}
 
       {data?.period_mode && (
         <div className="neo-alert neo-alert-info px-4 py-3 text-xs">

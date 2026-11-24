@@ -2,6 +2,7 @@
 
 import logging
 
+from arq.connections import RedisSettings, create_pool
 from redis.asyncio import Redis
 
 from app.config import settings
@@ -15,13 +16,18 @@ def get_redis() -> Redis | None:
     return _redis
 
 
+def get_redis_settings() -> RedisSettings:
+    config = RedisSettings.from_dsn(settings.REDIS_URL)
+    config.conn_timeout = 2
+    config.conn_retries = 0
+    return config
+
+
 async def connect_to_redis() -> bool:
     global _redis
     client = None
     try:
-        client = Redis.from_url(
-            settings.REDIS_URL, socket_timeout=2, socket_connect_timeout=2
-        )
+        client = await create_pool(get_redis_settings())
         await client.ping()
         _redis = client
         logger.info("Connected to Redis")

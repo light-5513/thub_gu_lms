@@ -43,6 +43,10 @@ const NAV = [
 
 export function AdminLayout() {
   const { session } = useAuth();
+  const canManage = session?.role === "ADMIN" || session?.role === "SUPER_ADMIN";
+  const visibleNav = NAV.filter((item) => canManage || ![
+    "/admin/invitations", "/admin/sandbox", "/admin/settings",
+  ].includes(item.to));
   const navigate = useNavigate();
   const logout = useLogout();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -75,7 +79,7 @@ export function AdminLayout() {
         </div>
 
         <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-5" aria-label="Main navigation">
-          {NAV.map(({ to, label, icon: Icon }) => (
+          {visibleNav.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -101,10 +105,10 @@ export function AdminLayout() {
               <p className="text-xs text-[var(--text-muted)]">{(session?.role || "ADMIN").replace(/_/g, " ")}</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <NavLink to="/admin/settings" className="btn-secondary inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-2 text-xs" title="Edit profile">
-              <Settings size={14} /> Profile
-            </NavLink>
+          <div className={clsx("grid gap-2", canManage ? "grid-cols-2" : "grid-cols-1")}>
+            {canManage && <NavLink to="/admin/settings" className="btn-secondary inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-2 text-xs" title="Settings">
+              <Settings size={14} /> Settings
+            </NavLink>}
             <button onClick={handleLogout} disabled={logout.isPending} className="btn-danger inline-flex items-center justify-center gap-1.5 rounded-full px-2 py-2 text-xs" title="Log out">
               <LogOut size={14} /> Logout
             </button>

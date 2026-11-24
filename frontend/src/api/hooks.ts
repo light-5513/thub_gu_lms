@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { api, getBatches, createBatch, updateBatch, deleteBatch, assignBatchStudents, uploadBatchStudents, getBatchStudents, removeBatchStudent } from "./client";
 import type {
   AdminDashboard,
@@ -37,6 +38,15 @@ export const qk = {
   settings: ["admin", "settings"] as const,
   auditLogs: (page: number) => ["admin", "audit-logs", page] as const,
 };
+
+function invalidateMonitoring(qc: QueryClient) {
+  for (const key of [
+    ["batch-monitor"], ["leaderboard"], ["coding-activity"], ["student"],
+    ["admin", "dashboard"], ["admin", "analytics"], ["admin", "student-report"],
+  ]) {
+    void qc.invalidateQueries({ queryKey: key });
+  }
+}
 
 // ------------------------------------------------------------------ auth
 export function useLogin() {
@@ -256,7 +266,7 @@ export function useSaveCodingProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (p: { platform: string; username: string }) => api.post("/student/coding-profiles", p),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["student"] }),
+    onSuccess: () => invalidateMonitoring(qc),
   });
 }
 
@@ -264,7 +274,7 @@ export function useDeleteCodingProfile() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (platform: string) => api.delete(`/student/coding-profiles/${platform}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["student"] }),
+    onSuccess: () => invalidateMonitoring(qc),
   });
 }
 
@@ -309,6 +319,8 @@ export function useCreateStudent() {
   return useMutation({
     mutationFn: async (payload: Partial<Student>) => (await api.post("/admin/students", payload)).data,
     onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
       qc.invalidateQueries({ queryKey: ["admin", "students"] });
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -322,6 +334,9 @@ export function useUpdateStudent() {
     mutationFn: async ({ id, ...payload }: { id: string } & Partial<Student>) =>
       (await api.put(`/admin/students/${id}`, payload)).data,
     onSuccess: (_d, vars) => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
       qc.invalidateQueries({ queryKey: ["admin", "students"] });
       qc.invalidateQueries({ queryKey: ["admin", "student", vars.id] });
       qc.invalidateQueries({ queryKey: ["batches"] });
@@ -335,6 +350,9 @@ export function useDeleteStudent() {
   return useMutation({
     mutationFn: async (id: string) => api.delete(`/admin/students/${id}`),
     onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
       qc.invalidateQueries({ queryKey: ["admin", "students"] });
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["leaderboard"] });
@@ -378,7 +396,10 @@ export function useCreateClass() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload: Record<string, unknown>) => (await api.post("/admin/classes", payload)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "classes"] }),
+    onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["admin", "classes"] });
+    },
   });
 }
 
@@ -386,7 +407,11 @@ export function useDeleteClass() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => api.delete(`/admin/classes/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "classes"] }),
+    onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["admin", "classes"] });
+      qc.invalidateQueries({ queryKey: ["admin", "session"] });
+    },
   });
 }
 
@@ -394,7 +419,10 @@ export function useDuplicateClass() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => (await api.post(`/admin/classes/${id}/duplicate`)).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "classes"] }),
+    onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["admin", "classes"] });
+    },
   });
 }
 
@@ -404,6 +432,7 @@ export function useUpdateClass() {
     mutationFn: async ({ id, payload }: { id: string; payload: Record<string, unknown> }) =>
       (await api.put(`/admin/classes/${id}`, payload)).data,
     onSuccess: (_data, vars) => {
+      invalidateMonitoring(qc);
       qc.invalidateQueries({ queryKey: ["admin", "classes"] });
       qc.invalidateQueries({ queryKey: ["admin", "class", vars.id] });
     },
@@ -419,6 +448,7 @@ export function useSaveAttendance() {
     mutationFn: async ({ classId, records }: { classId: string; records: Pick<AttendanceEntry, "student_id" | "status">[] }) =>
       (await api.post(`/admin/classes/${classId}/attendance`, { records, override: true })).data,
     onSuccess: (_d, vars) => {
+      invalidateMonitoring(qc);
       qc.invalidateQueries({ queryKey: qk.session(vars.classId) });
       qc.invalidateQueries({ queryKey: ["admin", "classes"] });
       qc.invalidateQueries({ queryKey: ["admin", "class", vars.classId] });
@@ -473,7 +503,8 @@ export function useSyncJobs(pollMs?: number) {
 }
 
 export function useSyncJob(jobId: string | null) {
-  return useQuery({
+  const qc = useQueryClient();
+  const query = useQuery({
     queryKey: qk.syncJob(jobId ?? ""),
     enabled: !!jobId,
     queryFn: async () => (await api.get<SyncJob>(`/admin/coding-sync/jobs/${jobId}`)).data,
@@ -482,11 +513,20 @@ export function useSyncJob(jobId: string | null) {
       return status === "running" || status === "queued" ? 2000 : false;
     },
   });
+  const status = query.data?.status;
+  useEffect(() => {
+    if (status === "completed" || status === "partial" || status === "failed") {
+      invalidateMonitoring(qc);
+    }
+  }, [qc, jobId, status]);
+  return query;
 }
 
 export function useRecalcLeaderboard() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => (await api.post<{ recalculated: number }>("/admin/leaderboards/recalculate")).data,
+    onSuccess: () => invalidateMonitoring(qc),
   });
 }
 
@@ -658,7 +698,10 @@ export const useUpdateBatch = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: { name?: string; description?: string } }) => updateBatch(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["batches"] }),
+    onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["batches"] });
+    },
   });
 };
 
@@ -667,6 +710,9 @@ export const useDeleteBatch = () => {
   return useMutation({
     mutationFn: (id: string) => deleteBatch(id),
     onSuccess: () => {
+      invalidateMonitoring(qc);
+      qc.invalidateQueries({ queryKey: ["admin", "students"] });
+      qc.invalidateQueries({ queryKey: ["batch-students"] });
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["leaderboard"] });
     },
@@ -679,6 +725,7 @@ export const useAssignBatchStudents = () => {
     mutationFn: ({ batchId, rollNumbers }: { batchId: string; rollNumbers: string[] }) =>
       assignBatchStudents(batchId, rollNumbers),
     onSuccess: () => {
+      invalidateMonitoring(qc);
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["batch-students"] });
       qc.invalidateQueries({ queryKey: ["admin", "session"] });
@@ -693,6 +740,7 @@ export const useUploadBatchStudents = () => {
   return useMutation({
     mutationFn: ({ batchId, file }: { batchId: string; file: File }) => uploadBatchStudents(batchId, file),
     onSuccess: () => {
+      invalidateMonitoring(qc);
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["batch-students"] });
       qc.invalidateQueries({ queryKey: ["admin", "session"] });
@@ -708,6 +756,7 @@ export const useRemoveBatchStudent = () => {
     mutationFn: ({ batchId, studentId }: { batchId: string; studentId: string }) =>
       removeBatchStudent(batchId, studentId),
     onSuccess: () => {
+      invalidateMonitoring(qc);
       qc.invalidateQueries({ queryKey: ["batches"] });
       qc.invalidateQueries({ queryKey: ["batch-students"] });
       qc.invalidateQueries({ queryKey: ["admin", "session"] });

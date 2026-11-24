@@ -41,11 +41,15 @@ class CodeChefAdapter(CodingPlatformAdapter):
             except Exception:
                 pass
         if ratings:
+            # all_rating entries carry each contest's rating and contest rank only.
             latest = ratings[-1]
             data["rating"] = float(latest.get("rating", 0) or 0)
-            data["highest_rating"] = float(latest.get("highest_rating", 0) or 0)
-            data["global_rank"] = latest.get("global_rank")
             data["contests"] = len(ratings)
+        # The first rating header is the CodeChef rating; later headers belong to
+        # other rating types and usually read "(Highest Rating 0)".
+        highest = re.search(r"\(Highest Rating\s+(\d+)\)", html)
+        if highest:
+            data["highest_rating"] = float(highest.group(1))
         m2 = re.search(r"stars-rating[^>]*>\s*(\d)", html)
         stars = re.findall(r"(\d)(?:&#9733|\u2605|★)", html)
         if stars:
@@ -55,10 +59,11 @@ class CodeChefAdapter(CodingPlatformAdapter):
         solved_m = re.search(r"Solved[^0-9]{0,20}(\d+)", html, re.IGNORECASE)
         if solved_m:
             data["problems_solved"] = int(solved_m.group(1))
-        ranks = re.search(r"Global rank:\s*([\d,]+)", html)
+        # Ranks render as <strong>N</strong></a> Global Rank; "Inactive" means no rank.
+        ranks = re.search(r"<strong>\s*([\d,]+)\s*</strong>\s*</a>\s*Global Rank", html)
         if ranks:
             data["global_rank"] = int(ranks.group(1).replace(",", ""))
-        div_rank = re.search(r"Country rank:\s*([\d,]+)", html)
+        div_rank = re.search(r"<strong>\s*([\d,]+)\s*</strong>\s*</a>\s*Country Rank", html)
         if div_rank:
             data["country_rank"] = int(div_rank.group(1).replace(",", ""))
         return data

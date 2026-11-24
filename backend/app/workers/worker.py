@@ -9,7 +9,7 @@ from bson import ObjectId
 
 from app.core.logging import setup_logging
 from app.database import mongo
-from app.database.redis import set_worker_heartbeat
+from app.database.redis import get_redis_settings, set_worker_heartbeat
 
 
 async def startup(ctx):
@@ -135,6 +135,7 @@ async def recalc_leaderboard_task(ctx):
 
 
 class WorkerSettings:
+    redis_settings = get_redis_settings()
     functions = [send_email_task, run_coding_sync_task, recalc_leaderboard_task]
     on_startup = startup
     on_shutdown = shutdown

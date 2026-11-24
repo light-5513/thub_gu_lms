@@ -2,6 +2,7 @@
 
 from fastapi import Depends, Request
 from fastapi.security.utils import get_authorization_scheme_param
+from bson import ObjectId
 
 from app.core.errors import AuthError, ForbiddenError
 from app.database import mongo
@@ -24,7 +25,6 @@ def _extract_token(request: Request) -> str | None:
 async def get_current_user(request: Request):
     from app.core.security import decode_token
 
-    db = mongo.get_db()
     token = _extract_token(request)
     if not token:
         raise AuthError("Authentication required")
@@ -32,7 +32,10 @@ async def get_current_user(request: Request):
     if not payload or payload.get("type") != "access":
         raise AuthError("Session expired or invalid. Please log in again.")
     user_id = payload.get("sub")
-    user = await db.users.find_one({"_id": __import__("bson").ObjectId(user_id)})
+    if not isinstance(user_id, str) or not ObjectId.is_valid(user_id):
+        raise AuthError("Session expired or invalid. Please log in again.")
+    db = mongo.get_db()
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
     if not user or not user.get("is_active", True):
         raise AuthError("Account is inactive")
     # Token invalidation via per-user version counter

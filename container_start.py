@@ -63,6 +63,7 @@ def stop_processes(processes: list[tuple[str, subprocess.Popen]]) -> None:
 def main() -> int:
     app_env = os.environ.copy()
     app_env["WHATSAPP_API_URL"] = f"http://127.0.0.1:{WHATSAPP_PORT}"
+    app_env["LMS_WHATSAPP_MANAGED"] = "1"
     ensure_internal_secret(app_env, "WHATSAPP_API_TOKEN", b"whatsapp-api-token")
     ensure_internal_secret(app_env, "WHATSAPP_OUTBOX_KEY", b"whatsapp-outbox")
 

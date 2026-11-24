@@ -243,18 +243,13 @@ async def _collect_report(db, report_type: str):
         service = AnalyticsService(db)
         low = await service.low_attendance_students()
         for s in low:
-            student_doc = await db.students.find_one({"_id": s.get("student_id")})
-            user_doc = (
-                await db.users.find_one({"_id": s.get("user_id")})
-                if s.get("user_id")
-                else None
-            )
+            student_doc = await db.students.find_one({"_id": ObjectId(s["student_id"])})
             rows.append(
                 [
                     s.get("name") or (await _name_of(db, s.get("student_id"))),
                     s.get("roll_number") or (student_doc or {}).get("roll_number"),
-                    (user_doc or {}).get("email"),
-                    s.get("attendance_percentage"),
+                    (student_doc or {}).get("email"),
+                    s.get("attendance"),
                     (student_doc or {}).get("course"),
                     (student_doc or {}).get("branch"),
                     (student_doc or {}).get("section"),

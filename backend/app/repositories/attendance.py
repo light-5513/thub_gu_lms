@@ -1,9 +1,10 @@
 """Class sessions and attendance data access."""
 
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from typing import Any
 
 from app.repositories.base import oid
+from app.core.errors import AppError
 
 
 class ClassRepository:
@@ -50,11 +51,13 @@ class ClassRepository:
         if academic_year_id:
             filters["academic_year_id"] = academic_year_id
         if date_from or date_to:
+            if date_from and date_to and date_from > date_to:
+                raise AppError("Start date must be on or before end date")
             date_filter: dict[str, Any] = {}
             if date_from:
-                date_filter["$gte"] = date_from
+                date_filter["$gte"] = datetime.combine(date_from, time.min, tzinfo=timezone.utc)
             if date_to:
-                date_filter["$lte"] = date_to
+                date_filter["$lte"] = datetime.combine(date_to, time.max, tzinfo=timezone.utc)
             filters["date"] = date_filter
         return filters
 

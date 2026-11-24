@@ -79,7 +79,7 @@ Optional for the API in development (in-memory fallbacks). Required for real bac
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GITHUB_API_TOKEN` | — | Optional personal access token; raises GitHub REST limit from 60 to 5,000 req/hr |
+| `GITHUB_API_TOKEN` | — | Personal access token (no scopes needed). Enables GitHub's contribution calendar and raises the API limit from 60 to 5,000 req/hr. Without a valid token, GitHub stats fall back to public pushes |
 | `LEETCODE_API_URL` | `https://leetcode.com/graphql` | Unofficial public GraphQL endpoint |
 | `CODECHEF_API_URL` | `https://www.codechef.com/users/` | Profile page base (no official API) |
 | `CODEFORCES_API_URL` | `https://codeforces.com/api` | Official public API (~1 req/s per IP) |

@@ -8,6 +8,7 @@ from app.models.enums import AuditAction, Role
 from app.repositories.users import StudentRepository, UserRepository
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
+from app.repositories.base import oid
 
 
 class StudentService:
@@ -155,7 +156,12 @@ class StudentService:
         student = await self.students.get_by_id(student_id)
         if not student:
             raise NotFoundError("Student not found")
-        clean = {k: v for k, v in fields.items() if v is not None}
+        clean = {
+            k: v for k, v in fields.items()
+            if v is not None or k in {"phone", "batch_id", "academic_year_id"}
+        }
+        if clean.get("roll_number"):
+            clean["roll_number"] = clean["roll_number"].strip()
         status = clean.pop("status", None)
         if clean.get("roll_number") and clean["roll_number"] != student["roll_number"]:
             existing = await self.students.get_by_roll(clean["roll_number"])
@@ -167,6 +173,11 @@ class StudentService:
             await self.students.update(student_id, clean)
         if status in ("active", "inactive"):
             await self.students.update(student_id, {"status": status})
+            if student.get("user_id"):
+                update = {"$set": {"is_active": status == "active"}}
+                if status == "inactive":
+                    update["$inc"] = {"token_version": 1}
+                await self.db.users.update_one({"_id": oid(student["user_id"])}, update)
             if status == "inactive":
                 await self.audit.log(
                     AuditAction.STUDENT_DEACTIVATED,
@@ -176,6 +187,9 @@ class StudentService:
                     entity_id=student_id,
                     ip_address=ip,
                 )
+        if student.get("user_id") and ("first_name" in clean or "last_name" in clean):
+            updated_name = f"{clean.get('first_name', student.get('first_name', ''))} {clean.get('last_name', student.get('last_name', ''))}".strip()
+            await self.users.update(student["user_id"], {"full_name": updated_name})
         await self.audit.log(
             AuditAction.STUDENT_UPDATED,
             user_id=str(actor["_id"]),
